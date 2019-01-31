@@ -272,10 +272,8 @@ class DoIP_Client:
         if logging == True:
             if self._RxDoIPMsg.isUDS:
                 self._logHndl.write('Server: ' + self._RxDoIPMsg.payload + '\n')
-                if self._isVerbose: print 'Server: ' + self._RxDoIPMsg.payload + '\n'
             else:
                 self._logHndl.write('Server: ' + self._RxDoIPMsg.DecodePayloadType() + '\n')
-                if self._isVerbose: print 'Server: ' + self._RxDoIPMsg.DecodePayloadType() + '\n'
         # check for positive ack, memory operation pending, or transfer operation pending
         if self._RxDoIPMsg.payloadType == DOIP_DIAGNOSTIC_POSITIVE_ACKNOWLEDGE or \
                 self._RxDoIPMsg.payload == PyUDS.MOPNDNG or \
@@ -284,10 +282,10 @@ class DoIP_Client:
             return self._DoIPUDSRecv()
         elif self._RxDoIPMsg.payloadType == DOIP_GENERIC_NEGATIVE_ACKNOWLEDGE:
             if self._isVerbose: print "GOT NACK ::"
-            return -2
+            return (-2, None)
         else:
-            if self._isVerbose: print "GOT POS Response ::"
-            return 0
+            if self._isVerbose: print "GOT POS Response :: " + self._RxDoIPMsg.payload
+            return (0, self._RxDoIPMsg.payload)
 
     def DoIPReadDID(self, DID):
         self._DoIPUDSSend(PyUDS.RDBI + DID)
@@ -322,20 +320,24 @@ class DoIP_Client:
         self._DoIPUDSSend(PyUDS.RC + PyUDS.STR + PyUDS.RC_CM + str(componentID) + CRCLen + CRC)
         return self._DoIPUDSRecv()
 
+    def DoIPControlDTCSetting(self, msg):
+        self._DoIPUDSSend(PyUDS.DCTS + msg)
+        return self._DoIPUDSRecv()
+
+    def DoIPSecurityAccess(self, msg):
+        self._DoIPUDSSend(PyUDS.DSAREQ + msg)
+        return self._DoIPUDSRecv()
+
     def DoIPSwitchDiagnosticSession(self, sessionID=1):
         targetSession = ''
         if int(sessionID) == 1:
-            print "Switching to Default Diagnostic Session..."
             self._DoIPUDSSend(PyUDS.DSC + PyUDS.DS)
         elif int(sessionID) == 2:
-            print "Switching to Programming Diagnostic Session..."
             self._DoIPUDSSend(PyUDS.DSC + PyUDS.PRGS)
         elif int(sessionID) == 3:
-            print "Switching to Extended diagnostic Session..."
             self._DoIPUDSSend(PyUDS.DSC + PyUDS.EXTDS)
         else:
-            print "Invalid diagnostic session. Session ID: 1) Default session 2) Programming session 3) Extended session"
-            return -1
+            raise ValueError("Invalid diagnostic session. Session ID: 1) Default session 2) Programming session 3) Extended session")
 
         return self._DoIPUDSRecv()
 
@@ -402,18 +404,18 @@ class DoIPMsg:
                 self.payload = message[24:len(message) - len(ASRBISO)]
                 self.isUDS = False
             if verbose:
-                print str(message)
+                print "DoIPMsg: ", str(message)
                 self.PrintMessage()
 
     def PrintMessage(self):
-        print "Protocol Version 		: " + str(self.protcolVersion)
-        print "Inv. Protocol Version 		: " + str(self.inverseProtocolVersion)
-        print "Payload Type 			: " + str(self.payloadType)
-        print "Payload Type Description 	: " + str(self.DecodePayloadType(self.payloadType))
-        print "Payload Length 			: " + str(self.payloadLength)
-        print "Source Address 			: " + str(self.sourceAddress)
-        print "Target Address 			: " + str(self.targetAddress)
-        print "Payload 			: " + str(self.payload)
+        print "Protocol Version         : " + str(self.protcolVersion)
+        print "Inv. Protocol Version    : " + str(self.inverseProtocolVersion)
+        print "Payload Type             : " + str(self.payloadType)
+        print "Payload Type Description : " + str(self.DecodePayloadType(self.payloadType))
+        print "Payload Length           : " + str(self.payloadLength)
+        print "Source Address           : " + str(self.sourceAddress)
+        print "Target Address           : " + str(self.targetAddress)
+        print "Payload                  : " + str(self.payload)
         print ""
 
     def DecodePayloadType(self, payloadType=None):
@@ -443,92 +445,170 @@ def DoIP_Routine_Control(subfunction, routine, op, verbose=False):
     else:
         print "TCP Socket creation failed."
 
-def DoIP_Flash_Hex(componentID, ihexFP, hostECUAddr = '0001', serverECUAddr = 'e000',targetIP='192.168.10.10', verbose=True, multiSegment=True):
-    # get necessary dependencies
-    import progressbar
-
+def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr = 'e000',targetIP='192.168.10.10', verbose=True, multiSegment=True):
+    
     t_FlashStart = time.time()
 
-    print '\nFlashing ' + str(ihexFP) + ' to component ID : ' + str(componentID) + '\n'
+    bytesRemaining = os.stat(flashFile).st_size
+    print "\nFlashing " + str(flashFile) + " to component ID : " + str(componentID)
+    print "flashing " + str(bytesRemaining) + " bytes\n"
 
     # start a DoIP client
     DoIPClient = DoIP_Client(ECUAddr = hostECUAddr)
     DoIPClient.SetVerbosity(verbose)
 
-    if DoIPClient._TCP_Socket:
-        downloadErr = False
-        DoIPClient.ConnectToDoIPServer(address = targetIP, port = 13400, routingActivation = True, targetECUAddr = serverECUAddr)
+    if not DoIPClient._TCP_Socket:
+        raise IOError("TCP Setup Failed")
 
-        if not DoIPClient._isTCPConnected:
-            raise IOError("TCP connection Failed")
-            
-        if not DoIPClient._isRoutingActivated:
-            raise IOError("ISO 134000 Routing failed")
+    downloadErr = False
+    DoIPClient.ConnectToDoIPServer(address = targetIP, port = 13400, routingActivation = True, targetECUAddr = serverECUAddr)
 
-        print "Switching to programming diagnostic session"
-        if DoIPClient.DoIPSwitchDiagnosticSession(PyUDS.PRGS)!=0:
-            raise ValueError("Failed to switch to programming diagnostic session")
+    if not DoIPClient._isTCPConnected:
+        raise IOError("TCP connection Failed")
+        
+    if not DoIPClient._isRoutingActivated:
+        raise IOError("ISO 134000 Routing failed")
 
-        print "Successfully switched to programming diagnostic session\n"
+    print "\n=============================\n=== Pre-Progrmamming Step ===\n=============================\n"
 
-        #reset connection to server
-        DoIPClient.DisconnectFromDoIPServer()
-        DoIPClient.ConnectToDoIPServer(address = targetIP, port = 13400, routingActivation = True, targetECUAddr = serverECUAddr)
+    #
+    # Get Application Flash File Name
+    #
+    print "    ### Get Applicaiton Flash File Name"
+    result, payload = DoIPClient.DoIPReadDID(PyUDS.DID_APPLICATION_FLASH_FILE_NAME)
+    if result < 0 :
+        raise ValueError("could not reterive DID_HEX_PROG_FILE_NAME")
+    if payload == None:
+        print "    Application Flash File Name: None\n"
+    else:
+        print "    Application Flash File Name: " + binascii.unhexlify(payload[6:]) + "\n"
 
-        if not DoIPClient._isTCPConnected:
-            raise IOError("TCP connection Failed")
-            
-        if not DoIPClient._isRoutingActivated:
-            raise IOError("ISO 134000 Routing failed")
+    #
+    # get Software Version Bootloader
+    #
+    print "    ### Get Software Version Number"
+    result, payload = DoIPClient.DoIPReadDID(PyUDS.DID_BOOT_SW_ID)
+    if result < 0 :
+        raise ValueError("could not reterive DID_BOOT_SW_ID")
+    if payload == None:
+        print "    Application Flash File Name: None\n"
+    else:
+        print "    Application Flash File Name: " + binascii.unhexlify(payload[6:]) + "\n"
 
-        print "\nStarting pre-download checks..."
-        if DoIPClient.DoIPReadDID(PyUDS.DID_APPLICATION_FLASH_FILE_NAME) < 0 :
-            raise ValueError("could not reterive DID_HEX_PROG_FILE_NAME")
+    #
+    # Set sesson to Extended Diagnostic Session
+    #
+    print "    ### Switching to Extended Diagnostic Session"
+    result, payload = DoIPClient.DoIPSwitchDiagnosticSession(PyUDS.EXTDS)
+    print "        Result = ", result
+    print "        payload = ", payload
+    if result !=0:
+        raise ValueError("Failed to switch to extended diagnostic session")
 
-        print dir(DoIPClient)
+    #
+    # Control DTC Setting, DTC OFF
+    #
+    print "\n    ### Set DTC Off"
+    result, payload = DoIPClient.DoIPControlDTCSetting(PyUDS.DTC_OFF)
+    print "        Result = ", result
+    print "        payload = ", payload
+    if result !=0:
+        raise ValueError("Failed to switch to set DTC off")
 
-        print "\nTODO: Security Request Seed"
+    #
+    # Communication Control, Disable non-diagnostic communicaiton
+    #
+    print "\n    ### TODO: Disable Non-Diagnostic Information"
 
-        print "\nTODO: Security Provide Key"
 
-        print "\nErase Memory Request"
-        DoIPClient.DoIPEraseMemory(componentID)
+    #reset connection to server
+    #DoIPClient.DisconnectFromDoIPServer()
+    #DoIPClient.ConnectToDoIPServer(address = targetIP, port = 13400, routingActivation = True, targetECUAddr = serverECUAddr)
 
-        garbage = '''
-                        print "\tRead success"
-                        print "\tWriting new tester finger print"
-                        # to do: we will need to replace the first line with the date
-                        if DoIPClient.DoIPWriteDID(PyUDS.DID_WRFPRNT, '180727' + \
-                                                                      '484F4E472D2D4849' + \
-                                                                      '4C2D544553542D54' + \
-                                                                      '45414D0304050607' + \
-                                                                      '08090A0B0C0D0E0F' + \
-                                                                      '0001020304050607' + \
-                                                                      '5858585858585858') == 0:
-                            print "\tWrite success"
-                            print "\tVerifying new tester finger print"
+    #if not DoIPClient._isTCPConnected:
+    #    raise IOError("TCP connection Failed")
+        
+    #if not DoIPClient._isRoutingActivated:
+    #    raise IOError("ISO 134000 Routing failed")
 
-                            # compare with the date here
-                            if DoIPClient.DoIPReadDID(PyUDS.DID_REFPRNT) == 0:
-                                # read and store old BL SW ID
+    print "\n=============================\n=== Progrmamming Step ===\n=============================\n"
+
+    #
+    # Set sesson to Programming Diagnostic Session
+    #
+    print "    ### Switching to Programming Diagnostic Session"
+    result, payload = DoIPClient.DoIPSwitchDiagnosticSession(PyUDS.PRGS)
+    print "        Result = ", result
+    print "        payload = ", payload
+    if result !=0:
+        raise ValueError("Failed to switch to programming diagnostic session")
+
+
+    #
+    # Security Access: Request Seed
+    #
+    print "\n    ### TODO: Security Access: Request Seed"
+    result, payload = DoIPClient.DoIPSecurityAccess(PyUDS.REQUEST_SEED)
+    print "        Result = ", result
+    print "        payload = ", payload
+    if result !=0:
+        raise ValueError("Failed to request security seed")
+        
+
+    #
+    # Security Access: Send Key
+    #
+    print "\n    ### TODO: Security Access: Send Key"
+    result, payload = DoIPClient.DoIPSecurityAccess(PyUDS.SEND_KEY + "22334455")
+    print "        Result = ", result
+    print "        payload = ", payload
+    if result !=0:
+        raise ValueError("Failed to request security seed")
+        
+
+    print "\n================================\n=== Enter Progrgramming Loop ===\n================================\n"
+
+    
+    #print "\nStarting pre-download checks..."
+    #if DoIPClient.DoIPReadDID(PyUDS.DID_APPLICATION_FLASH_FILE_NAME) < 0 :
+    #    raise ValueError("could not reterive DID_HEX_PROG_FILE_NAME")
+
+    print "\nErase Memory Request"
+    DoIPClient.DoIPEraseMemory(componentID)
+
+    garbage = '''
+                    print "\tRead success"
+                    print "\tWriting new tester finger print"
+                    # to do: we will need to replace the first line with the date
+                    if DoIPClient.DoIPWriteDID(PyUDS.DID_WRFPRNT, '180727' + \
+                                                                    '484F4E472D2D4849' + \
+                                                                    '4C2D544553542D54' + \
+                                                                    '45414D0304050607' + \
+                                                                    '08090A0B0C0D0E0F' + \
+                                                                    '0001020304050607' + \
+                                                                    '5858585858585858') == 0:
+                        print "\tWrite success"
+                        print "\tVerifying new tester finger print"
+
+                        # compare with the date here
+                        if DoIPClient.DoIPReadDID(PyUDS.DID_REFPRNT) == 0:
+                            # read and store old BL SW ID
+                            # to-do: decipher and store relevant info
+                            print "\tRead success"
+                            print "\tReading Bootloader SW ID"
+                            if DoIPClient.DoIPReadDID(PyUDS.DID_BOOTSID) == 0:
+
+                                # read and store old APP and CAL SW ID
                                 # to-do: decipher and store relevant info
                                 print "\tRead success"
-                                print "\tReading Bootloader SW ID"
-                                if DoIPClient.DoIPReadDID(PyUDS.DID_BOOTSID) == 0:
-
-                                    # read and store old APP and CAL SW ID
-                                    # to-do: decipher and store relevant info
+                                print "\tReading Application and Calibration SW ID"
+                                if DoIPClient.DoIPReadDID(PyUDS.DID_APCASID) == 0:
                                     print "\tRead success"
-                                    print "\tReading Application and Calibration SW ID"
-                                    if DoIPClient.DoIPReadDID(PyUDS.DID_APCASID) == 0:
-                                        print "\tRead success"
-                                        print "Pre-download checks complete\n"
+                                    print "Pre-download checks complete\n"
 
-                                        # Erase component memory for target component
-                                        if DoIPClient.DoIPEraseMemory(componentID) == 0:
-                                            print "Erase memory success\n"
-                                        else:
-                                            downloadErr = True
+                                    # Erase component memory for target component
+                                    if DoIPClient.DoIPEraseMemory(componentID) == 0:
+                                        print "Erase memory success\n"
                                     else:
                                         downloadErr = True
                                 else:
@@ -539,148 +619,150 @@ def DoIP_Flash_Hex(componentID, ihexFP, hostECUAddr = '0001', serverECUAddr = 'e
                             downloadErr = True
                     else:
                         downloadErr = True
+                else:
+                    downloadErr = True
 
-                    if not downloadErr:
-                        print "Loading hex file: " + ihexFP
-                        from intelhex import IntelHex
-                        ih = IntelHex()
-                        ih.loadhex(ihexFP)
+                if not downloadErr:
+                    print "Loading hex file: " + ihexFP
+                    from intelhex import IntelHex
+                    ih = IntelHex()
+                    ih.loadhex(ihexFP)
+
+                    if multiSegment:
+                        print "Downloading in multiple segments..."
+                        segments = ih.segments()
+                    else:
+                        print "Downloading in a single filled segment..."
+                        minAddr = ih.minaddr()
+                        maxAddr = ih.maxaddr()
+                        segments = [(ih.minaddr(), ih.maxaddr())]
+
+                    for (minAddr, maxAddr) in segments:
 
                         if multiSegment:
-                            print "Downloading in multiple segments..."
-                            segments = ih.segments()
+                            maxAddr -= 1
+
+                        memSize = maxAddr - minAddr + 1
+
+                        minAddrStr = "%.8X" % minAddr
+                        maxAddrStr = "%.8X" % maxAddr
+                        memSizeStr = "%.8X" % memSize
+                        print "\tStart Address: " + minAddrStr + " (%.10d)" % minAddr
+                        print "\tEnd Address:   " + maxAddrStr + " (%.10d)" % maxAddr
+                        print "\tTotal Memory:  " + memSizeStr + " (%.10d)\n" % memSize
+
+                        # request download here. Set maxBlockByteCount to valu from request download
+                        maxBlockByteCount = DoIPClient.DoIPRequestDownload(minAddrStr, memSizeStr)
+                        if maxBlockByteCount >= 2:
+                            maxBlockByteCount -= 2  # subtract 2 for SID and index
                         else:
-                            print "Downloading in a single filled segment..."
-                            minAddr = ih.minaddr()
-                            maxAddr = ih.maxaddr()
-                            segments = [(ih.minaddr(), ih.maxaddr())]
+                            print "Error while requesting download data. Exiting out of flash sequencing"
+                            downloadErr = True
+                            break
 
-                        for (minAddr, maxAddr) in segments:
+                        blockByteCount = 0
+                        hexDataStr = ''
+                        hexDataList = []
 
-                            if multiSegment:
-                                maxAddr -= 1
+                        for address in range(minAddr, maxAddr + 1):
+                            # print '%.8X\t%.2X' % (address,ih[address])
+                            hexDataStr = hexDataStr + '%.2X' % ih[address]
+                            blockByteCount += 1
+                            if blockByteCount == maxBlockByteCount:
+                                hexDataList.append(hexDataStr)
+                                hexDataStr = ''
+                                blockByteCount = 0
+                        hexDataList.append(hexDataStr)
+                        blockIndex = 1
 
-                            memSize = maxAddr - minAddr + 1
+                        # turn off verbosity, less you be spammed!
+                        if DoIPClient._isVerbose:
+                            DoIPClient.SetVerbosity(False)
 
-                            minAddrStr = "%.8X" % minAddr
-                            maxAddrStr = "%.8X" % maxAddr
-                            memSizeStr = "%.8X" % memSize
-                            print "\tStart Address: " + minAddrStr + " (%.10d)" % minAddr
-                            print "\tEnd Address:   " + maxAddrStr + " (%.10d)" % maxAddr
-                            print "\tTotal Memory:  " + memSizeStr + " (%.10d)\n" % memSize
+                        print "Transfering Data -- Max block size(bytes): 0x%.4X (%d)" % (
+                            maxBlockByteCount, maxBlockByteCount)
 
-                            # request download here. Set maxBlockByteCount to valu from request download
-                            maxBlockByteCount = DoIPClient.DoIPRequestDownload(minAddrStr, memSizeStr)
-                            if maxBlockByteCount >= 2:
-                                maxBlockByteCount -= 2  # subtract 2 for SID and index
-                            else:
-                                print "Error while requesting download data. Exiting out of flash sequencing"
+                        # start download progress bar
+                        bar = progressbar.ProgressBar(maxval=len(hexDataList),
+                                                        widgets=[progressbar.Bar('=', '[', ']'), ' ',
+                                                                progressbar.Percentage()])
+                        bar.start()
+                        bar.update(blockIndex)
+
+                        t_Start = time.time()
+
+                        # begin transferring data
+                        for block in hexDataList:
+                            blockIndexStr = '%.2X' % (blockIndex & 0xFF)
+                            if DoIPClient.DoIPTransferData(blockIndexStr, block) != 0:
                                 downloadErr = True
                                 break
-
-                            blockByteCount = 0
-                            hexDataStr = ''
-                            hexDataList = []
-
-                            for address in range(minAddr, maxAddr + 1):
-                                # print '%.8X\t%.2X' % (address,ih[address])
-                                hexDataStr = hexDataStr + '%.2X' % ih[address]
-                                blockByteCount += 1
-                                if blockByteCount == maxBlockByteCount:
-                                    hexDataList.append(hexDataStr)
-                                    hexDataStr = ''
-                                    blockByteCount = 0
-                            hexDataList.append(hexDataStr)
-                            blockIndex = 1
-
-                            # turn off verbosity, less you be spammed!
-                            if DoIPClient._isVerbose:
-                                DoIPClient.SetVerbosity(False)
-
-                            print "Transfering Data -- Max block size(bytes): 0x%.4X (%d)" % (
-                                maxBlockByteCount, maxBlockByteCount)
-
-                            # start download progress bar
-                            bar = progressbar.ProgressBar(maxval=len(hexDataList),
-                                                          widgets=[progressbar.Bar('=', '[', ']'), ' ',
-                                                                   progressbar.Percentage()])
-                            bar.start()
                             bar.update(blockIndex)
+                            blockIndex += 1
 
-                            t_Start = time.time()
-
-                            # begin transferring data
-                            for block in hexDataList:
-                                blockIndexStr = '%.2X' % (blockIndex & 0xFF)
-                                if DoIPClient.DoIPTransferData(blockIndexStr, block) != 0:
-                                    downloadErr = True
-                                    break
-                                bar.update(blockIndex)
-                                blockIndex += 1
-
-                            bar.finish()
-
-                            if not downloadErr:
-                                if DoIPClient.DoIPRequestTransferExit() == 0:
-                                    t_Finish = time.time()
-                                    t_Download = int(t_Finish - t_Start)
-                                    hr_Download = t_Download / 3600
-                                    min_Download = t_Download / 60 - hr_Download * 60
-                                    sec_Download = t_Download - hr_Download * 3600 - min_Download * 60
-                                    print "Download complete. Elapsed download time: %.0fdhr %.0fmin %.0fdsec" % (
-                                        hr_Download, min_Download, sec_Download)
-                                    print 'Total Blocks sent: 		%d' % (len(hexDataList))
-                                    print 'Block size(bytes): 		%d' % (len(hexDataList[0]) / 2)
-                                    print 'Final block size(bytes):	%d\n' % (len(hexDataList[len(hexDataList) - 1]) / 2)
-
-                                else:
-                                    print "Request transfer exit failure. Exiting out of flash sequence"
-                                    downloadErr = True
-                                    break
-                            else:
-                                print "Transfer data failure. Exiting out of flash sequence"
-                                downloadErr = True
-                                break
-
-                        # reset verbosity
-                        if verbose:
-                            DoIPClient.SetVerbosity(True)
+                        bar.finish()
 
                         if not downloadErr:
-                            # request check memory
-                            if DoIPClient.DoIPCheckMemory(componentID) == 0:
-                                if DoIPClient._RxDoIPMsg.payload[9] == '0':
-                                    print "Check memory passed. Authorizing software update\n"
-                                # if pass, then authorize application . to do: application authorization
-                                else:
-                                    print "Check memory failed. Software update is invalid. Exiting out of update sequence\n"
-
-                                print "Switching to default diagnostic session..."
-                                print "\tWarning :: ECU will reset"
-                                if DoIPClient._DoIPUDSSend(PyUDS.DSC + PyUDS.DS) == 0:
-                                    print "Successfully switched to default diagnostic session\n"
-                                    print "Software update success!!\n"
-
-                                    t_FlashEnd = time.time()
-                                    t_Flash = int(t_FlashEnd - t_FlashStart)
-                                    hr_Flash = t_Flash / 3600
-                                    min_Flash = t_Flash / 60 - hr_Flash * 60
-                                    sec_Flash = t_Flash - hr_Flash * 3600 - min_Flash * 60
-                                    print "-----------------------------------------------------------------------------------"
-                                    print "Flash sequence complete. Elapsed flash time: %.0fdhr %.0fmin %.0fdsec \n" % (
-                                        hr_Flash, min_Flash, sec_Flash)
-                                    print "-----------------------------------------------------------------------------------"
+                            if DoIPClient.DoIPRequestTransferExit() == 0:
+                                t_Finish = time.time()
+                                t_Download = int(t_Finish - t_Start)
+                                hr_Download = t_Download / 3600
+                                min_Download = t_Download / 60 - hr_Download * 60
+                                sec_Download = t_Download - hr_Download * 3600 - min_Download * 60
+                                print "Download complete. Elapsed download time: %.0fdhr %.0fmin %.0fdsec" % (
+                                    hr_Download, min_Download, sec_Download)
+                                print 'Total Blocks sent: 		%d' % (len(hexDataList))
+                                print 'Block size(bytes): 		%d' % (len(hexDataList[0]) / 2)
+                                print 'Final block size(bytes):	%d\n' % (len(hexDataList[len(hexDataList) - 1]) / 2)
 
                             else:
-                                print "Error while checking memory. Exiting out of flash sequence."
+                                print "Request transfer exit failure. Exiting out of flash sequence"
+                                downloadErr = True
+                                break
                         else:
-                            print "Error during post transfer operations.\n"
+                            print "Transfer data failure. Exiting out of flash sequence"
+                            downloadErr = True
+                            break
 
-                        # disconnect from the server gracefully please
+                    # reset verbosity
+                    if verbose:
+                        DoIPClient.SetVerbosity(True)
+
+                    if not downloadErr:
+                        # request check memory
+                        if DoIPClient.DoIPCheckMemory(componentID) == 0:
+                            if DoIPClient._RxDoIPMsg.payload[9] == '0':
+                                print "Check memory passed. Authorizing software update\n"
+                            # if pass, then authorize application . to do: application authorization
+                            else:
+                                print "Check memory failed. Software update is invalid. Exiting out of update sequence\n"
+
+                            print "Switching to default diagnostic session..."
+                            print "\tWarning :: ECU will reset"
+                            if DoIPClient._DoIPUDSSend(PyUDS.DSC + PyUDS.DS) == 0:
+                                print "Successfully switched to default diagnostic session\n"
+                                print "Software update success!!\n"
+
+                                t_FlashEnd = time.time()
+                                t_Flash = int(t_FlashEnd - t_FlashStart)
+                                hr_Flash = t_Flash / 3600
+                                min_Flash = t_Flash / 60 - hr_Flash * 60
+                                sec_Flash = t_Flash - hr_Flash * 3600 - min_Flash * 60
+                                print "-----------------------------------------------------------------------------------"
+                                print "Flash sequence complete. Elapsed flash time: %.0fdhr %.0fmin %.0fdsec \n" % (
+                                    hr_Flash, min_Flash, sec_Flash)
+                                print "-----------------------------------------------------------------------------------"
+
+                        else:
+                            print "Error while checking memory. Exiting out of flash sequence."
+                    else:
+                        print "Error during post transfer operations.\n"
+
+                    # disconnect from the server gracefully please
 '''
-        print "Exiting out of flash sequence...\n"
-        DoIPClient.DisconnectFromDoIPServer()
-        time.sleep(5)
+    print "Exiting out of flash sequence...\n"
+    DoIPClient.DisconnectFromDoIPServer()
+    time.sleep(5)
 
 
 
@@ -764,17 +846,18 @@ def main():
 
 
     optional.add_argument("-f", "--swufile", nargs = 1, type = str, help = "Full path to swuFile")
-    optional.add_argument("-clientID", nargs = 1, default = ['0001'] ,type = str, help = "Host ECU id to flash from in hex format, i.e. 1111 will be read as 0x1111. Default: 1111")
-    optional.add_argument("-serverID", nargs =1, default = ['e000'],type = str, help = "Target ECU id to flash to in hex format, i.e. 2004 will be read as 0x2004. Default: 2004")
-    optional.add_argument("-targetIP", nargs = 1,default = ['192.168.10.10'], type = str, help = "Target IP address of ECU, e.g. 192.168.7.2. Default: 172.26.200.101")
+    optional.add_argument("-c", "--clientID", nargs = 1, default = ['0001'] ,type = str, help = "Host ECU id to flash from in hex format, i.e. 1111 will be read as 0x1111. Default: 1111")
+    optional.add_argument("-s", "--serverID", nargs =1, default = ['e000'],type = str, help = "Target ECU id to flash to in hex format, i.e. 2004 will be read as 0x2004. Default: 2004")
+    optional.add_argument("-t", "--targetIP", nargs = 1,default = ['192.168.10.10'], type = str, help = "Target IP address of ECU, e.g. 192.168.7.2. Default: 172.26.200.101")
     optional.add_argument("-v", "--verbose", help="Set verbosity. Default: false", action="store_true")
 
     args = vars(parser.parse_args())
 
+    print args['swufile']
+
     if args['swufile']:
         print ".swu File Path: " + args['swufile'][0]
         print ".swu File Size: " + str(os.stat(args['swufile'][0]).st_size/1000) + "kb"
-
     else:
         print "Error:: No .swu file provided"			
         sys.exit(-1)

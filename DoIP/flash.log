@@ -1,7 +1,22 @@
-Client: 1002
-Server: Diagnostic positive acknowledge
-Server: 500201F40032
 Client: 22F111
 Server: Diagnostic positive acknowledge
 Server: 62F11143554B545F787878797979797A7A7A7A
+Client: 22F180
+Server: Diagnostic positive acknowledge
+Server: 62F180013139303133313032
+Client: 1003
+Server: Diagnostic positive acknowledge
+Server: 500301F40032
+Client: 8582
+Server: Diagnostic positive acknowledge
+Server: 500301F40032
+Client: 1002
+Server: Diagnostic positive acknowledge
+Server: 500201F40032
+Client: 2703
+Server: Diagnostic positive acknowledge
+Server: 670301020304
+Client: 270422334455
+Server: Diagnostic positive acknowledge
+Server: 6704
 Client: 3101FF000
