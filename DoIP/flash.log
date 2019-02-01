@@ -19,4 +19,12 @@ Server: 670301020304
 Client: 270422334455
 Server: Diagnostic positive acknowledge
 Server: 6704
-Client: 3101FF000
+Client: 3101FF000100000000022b
+Server: Diagnostic positive acknowledge
+Server: 7101FF0001
+Client: 3103FF00
+Server: Diagnostic positive acknowledge
+Server: 7101FF0001
+Client: 340044000000000000022b
+Server: Diagnostic positive acknowledge
+Server: 741030

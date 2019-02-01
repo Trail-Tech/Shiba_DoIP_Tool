@@ -115,8 +115,7 @@ class DoIP_Client:
             self._TCP_Socket.settimeout(5.0)
             # self._TCP_Socket.setblocking(1)
             self._TCP_Socket.bind((self._localIPAddr, self._localPort))
-            print "Socket successfully created: Binded to %s:%d" % (
-                self._TCP_Socket.getsockname()[0], self._TCP_Socket.getsockname()[1])
+            print "Socket successfully created: Binded to %s:%d" % (self._TCP_Socket.getsockname()[0], self._TCP_Socket.getsockname()[1])
 
         except socket.error as err:
             print "Socket creation failed with error: %s" % err
@@ -296,7 +295,7 @@ class DoIP_Client:
         return self._DoIPUDSRecv()
 
     def DoIPRoutineControl(self, subfunction, routine_id, op_data):
-        print "Sending routine control command, subfunction:" + str(subfunction) + "routine id:" + str(routine_id)
+        print "        Sending routine control command, subfunction:" + str(subfunction) + ", routine id:" + str(routine_id)
         self._DoIPUDSSend(PyUDS.RC + subfunction + routine_id + op_data)
         return self._DoIPUDSRecv()
 
@@ -308,6 +307,18 @@ class DoIP_Client:
             
         componentID = PadHexwithLead0s(componentID)
         self._DoIPUDSSend(PyUDS.RC + PyUDS.STR + PyUDS.RC_EM + str(componentID))  # #  TO DO: CHANGE VALUE TO VARAIBLE
+        return self._DoIPUDSRecv()
+
+    def DoIPEraseMemoryKTM(self, componentID, MemStartAddr, MemEndAddres):
+        
+        if type(componentID) == 'int':
+            componentID = '%0.2X' % (0xFF & componentID)
+
+        memStart = hex(MemStartAddr).lstrip("0x").rstrip("L").rjust(6, '0') # convert 4096 to "001000"
+        memEnd = hex(MemEndAddres).lstrip("0x").rstrip("L").rjust(6, '0')
+            
+        componentID = PadHexwithLead0s(componentID)
+        self._DoIPUDSSend(PyUDS.RC + PyUDS.STR + PyUDS.RC_EM + str(componentID) + memStart + memEnd )  # #  TO DO: CHANGE VALUE TO VARAIBLE
         return self._DoIPUDSRecv()
 
     def DoIPCheckMemory(self, componentID, CRCLen='00', CRC='00'):
@@ -350,6 +361,11 @@ class DoIP_Client:
         else:
             return -1
         return int(self._RxDoIPMsg.payload[4:(2 * dlLenFormatID + 4)], 16)
+
+    def DoIPRequestDownloadKTM(self, msg):
+        print "Requesting download data..."
+        self._DoIPUDSSend(PyUDS.RD + msg)
+        return self._DoIPUDSRecv()
 
     def DoIPTransferData(self, blockIndex, data):
         self._DoIPUDSSend(PyUDS.TD + blockIndex + data)
@@ -445,7 +461,7 @@ def DoIP_Routine_Control(subfunction, routine, op, verbose=False):
     else:
         print "TCP Socket creation failed."
 
-def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr = 'e000',targetIP='192.168.10.10', verbose=True, multiSegment=True):
+def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr = 'e000',targetIP='192.168.10.10', verbose=True, multiSegment=True, blocksize=1024):
     
     t_FlashStart = time.time()
 
@@ -531,7 +547,7 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
     #if not DoIPClient._isRoutingActivated:
     #    raise IOError("ISO 134000 Routing failed")
 
-    print "\n=============================\n=== Progrmamming Step ===\n=============================\n"
+    print "\n=========================\n=== Progrmamming Step ===\n=========================\n"
 
     #
     # Set sesson to Programming Diagnostic Session
@@ -567,14 +583,80 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
         
 
     print "\n================================\n=== Enter Progrgramming Loop ===\n================================\n"
+    print "%d bytesRemaining" % bytesRemaining
+    print "%d bytes per transfer block" % blocksize
 
+    imageOffset = 0
+    bytesFlashed = 0
+    bytesThisCycle = min(blocksize, bytesRemaining)
     
-    #print "\nStarting pre-download checks..."
-    #if DoIPClient.DoIPReadDID(PyUDS.DID_APPLICATION_FLASH_FILE_NAME) < 0 :
-    #    raise ValueError("could not reterive DID_HEX_PROG_FILE_NAME")
+    
 
-    print "\nErase Memory Request"
-    DoIPClient.DoIPEraseMemory(componentID)
+    while bytesRemaining:
+
+        currentImageOffset = imageOffset + bytesFlashed;
+
+        eraseRunning = True
+        while eraseRunning:
+
+            #
+            # Routine Control: Start Erase Memory
+            #
+            print "\n    ### Erase Memory, %d bytes at address %d" % (bytesThisCycle, currentImageOffset)
+            result, payload = DoIPClient.DoIPEraseMemoryKTM(PyUDS.START_ROUTINE, currentImageOffset, currentImageOffset+bytesThisCycle)
+            print "        Result = ", result
+            print "        payload = ", payload
+            if result !=0:
+                raise ValueError("Failed to request security seed")
+
+            #
+            # Routine Control: Request Results Erase Memory
+            #
+            print "\n    ### Erase Memory Check Results"
+            result, payload = DoIPClient.DoIPRoutineControl(PyUDS.REQUEST_ROUTINE_RESULTS, "FF00", "")
+            print "        Result = ", result
+            print "        payload = ", payload
+            if result !=0:
+                raise ValueError("Failed to request security seed")
+
+            if result == 0 and payload[8:10] == "01":
+                eraseRunning = False
+        
+            #
+            # Request Download
+            #
+            print "\n    ### Erase Memory Check Results"
+
+            hAddressAndLengthFormatIdentifier = "44"
+            hMemAddress = hex(currentImageOffset).lstrip("0x").rstrip("L").rjust(8, '0')
+            hMemSize = hex(bytesThisCycle).lstrip("0x").rstrip("L").rjust(8, '0')
+
+            print "    formatter:" + hAddressAndLengthFormatIdentifier + ", address:" + hMemAddress + ", size:" + hMemSize
+            
+            x = DoIPClient.DoIPRequestDownloadKTM(PyUDS.DATA_FORMAT_ID + hAddressAndLengthFormatIdentifier + hMemAddress + hMemSize)
+            print x
+#            result, payload = DoIPClient.DoIPRequestDownloadKTM(PyUDS.DATA_FORMAT_ID + hAddressAndLengthFormatIdentifier + "20305060")
+            print "        Result = ", result
+            print "        payload = ", payload
+            if result !=0:
+                raise ValueError("Failed to request security seed")
+
+            if result == 0 and payload[8:10] == "01":
+                eraseRunning = False
+
+        
+
+        bytesFlashed += bytesThisCycle
+        bytesRemaining -= bytesThisCycle
+
+        print "end of flash cycle, %d bytes flashed, %d bytes remaining." % (bytesFlashed, bytesRemaining)
+
+        print "Exiting out of flash sequence...\n"
+        DoIPClient.DisconnectFromDoIPServer()
+
+            
+
+
 
     garbage = '''
                     print "\tRead success"
@@ -762,76 +844,7 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
 '''
     print "Exiting out of flash sequence...\n"
     DoIPClient.DisconnectFromDoIPServer()
-    time.sleep(5)
 
-
-
-def DoIP_Erase_Memory(componentID, targetIP='172.26.200.101', verbose=False):
-    # Function to erase component ID
-    print "Erasing memory from component ID: " + (componentID)
-    # start a DoIP client
-    DoIPClient = DoIP_Client()
-    DoIPClient.SetVerbosity(verbose)
-
-    if DoIPClient._TCP_Socket:
-        DoIPClient.ConnectToDoIPServer()
-
-        if DoIPClient._isTCPConnected and DoIPClient._isRoutingActivated:
-
-            print "Switching to programming diagnostic session"
-            if DoIPClient.DoIPSwitchDiagnosticSession(PyUDS.PRGS) == 0:
-                print "Successfully switched to programming diagnostic session\n"
-                DoIPClient.DisconnectFromDoIPServer()
-                # time.sleep(1)
-                DoIPClient.ConnectToDoIPServer()
-
-                if DoIPClient._isTCPConnected:
-                    if DoIPClient.DoIPEraseMemory(componentID) == 0:
-                        print "Erase memory success\n"
-                    else:
-                        print "Error erasing memory. Exiting out of sequence"
-                else:
-                    print "Error while reconnecting to ECU and//or activate. Exiting erase memory sequence."
-            else:
-                print "Error while switching to programming diagnostic session. Exiting erase memory sequence."
-
-            DoIPClient.DisconnectFromDoIPServer()
-            time.sleep(5)
-
-        else:
-            print "Error while connect to ECU and//or activate routing. Exiting erase memory sequence."
-    else:
-        print "Error while creating DoIP client. Unable to initiate erase memory sequence."
-
-
-def Test_Switch_Diagnostic_Session(targetIP='172.26.200.101', sessionID=1, verbose=False):
-    # Function to Switch Diagnostic Session Then Close Socket
-    print "Switching to sessionID: " + str(sessionID)
-    # start a DoIP client
-    DoIPClient = DoIP_Client()
-    DoIPClient.SetVerbosity(verbose)
-
-    if DoIPClient.TCP_Socket:
-        DoIPClient.ConnectToDoIPServer()
-
-        if DoIPClient._isTCPConnected and DoIPClient._isRoutingActivated:
-
-            print "Switching diagnostic session"
-            print DoIPClient.DoIPSwitchDiagnosticSession(sessionID)
-
-            DoIPClient.DisconnectFromDoIPServer()
-            time.sleep(5)
-
-
-        else:
-            print "Error while connect to ECU and//or activate routing. Exiting erase memory sequence."
-    else:
-        print "Error while creating DoIP client. Unable to initiate erase memory sequence."
-
-
-''' 
-to do: move contents below into main so that main is called safely only when PyDoIP.py is called from terminal
-'''
 
 def main():
     
@@ -845,19 +858,18 @@ def main():
     optional = parser.add_argument_group('optional arguments')
 
 
-    optional.add_argument("-f", "--swufile", nargs = 1, type = str, help = "Full path to swuFile")
+    optional.add_argument("-f", "--file", nargs = 1, type = str, help = "Full path to flash file")
     optional.add_argument("-c", "--clientID", nargs = 1, default = ['0001'] ,type = str, help = "Host ECU id to flash from in hex format, i.e. 1111 will be read as 0x1111. Default: 1111")
     optional.add_argument("-s", "--serverID", nargs =1, default = ['e000'],type = str, help = "Target ECU id to flash to in hex format, i.e. 2004 will be read as 0x2004. Default: 2004")
     optional.add_argument("-t", "--targetIP", nargs = 1,default = ['192.168.10.10'], type = str, help = "Target IP address of ECU, e.g. 192.168.7.2. Default: 172.26.200.101")
+    optional.add_argument("-b", "--blocksize", nargs = 1, default = 1024 ,type = int, help = "Transfer block size")
     optional.add_argument("-v", "--verbose", help="Set verbosity. Default: false", action="store_true")
 
     args = vars(parser.parse_args())
 
-    print args['swufile']
-
-    if args['swufile']:
-        print ".swu File Path: " + args['swufile'][0]
-        print ".swu File Size: " + str(os.stat(args['swufile'][0]).st_size/1000) + "kb"
+    if args['file']:
+        print ".swu File Path: " + args['file'][0]
+        print ".swu File Size: " + str(os.stat(args['file'][0]).st_size/1000) + "kb"
     else:
         print "Error:: No .swu file provided"			
         sys.exit(-1)
@@ -868,21 +880,23 @@ def main():
         print "Error:: No host/client ECU address specified"
         sys.exit(-1)
 
-    if args ['serverID']:
+    if args['serverID']:
         print "Server ECU ID: " + args['serverID'][0]
     else:
         print "Error:: No target/server ECU address specified"
         sys.exit(-1)
 
-    if args ['targetIP']:
+    if args['targetIP']:
         print "Server ECU IP Addr: " + args['targetIP'][0]
     else:
         print "Error:: No target IP address specified"
         sys.exit(-1)
                             
-    print "\nFlashing"
+    if not args['blocksize'] or args['blocksize'] < 1:
+        print "Error:: Invalid blocksize, must be a positive integer"
+        sys.exit(-1)
 
-    DoIP_Flash_Hex(0, args['swufile'][0], targetIP=args['targetIP'][0], verbose=args['verbose'], multiSegment=True)
+    DoIP_Flash_Hex(0, args['file'][0], targetIP=args['targetIP'][0], verbose=args['verbose'], multiSegment=True, blocksize = args['blocksize'][0])
 
 if __name__ == '__main__':
     main()
