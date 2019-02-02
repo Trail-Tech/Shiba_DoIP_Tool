@@ -130,7 +130,7 @@ TESTER_PRESENT_RESPONSE = TPPR ='7E'
 
 #REQUEST_DOWNLOAD0x34. <0x34><data format ID><address and legnth format ID><memory address><memory size>
 REQUEST_DOWNLOAD = RD = '34'
-DATA_FORMAT_ID = DFI_00 = '00' #00 is default, else vehicle manufacturer specific, no compression, no encryption
+DATA_FORMAT_ID = DFI_00 = "00" #00 is default, else vehicle manufacturer specific, no compression, no encryption
 ADDRESS_AND_LENGTH_FORMAT_ID = ALFID = '44' #44 ff default. 4 bytes for address, 4 bytes for memory size
 ##Memory address and memory size length specified by ALFID
 

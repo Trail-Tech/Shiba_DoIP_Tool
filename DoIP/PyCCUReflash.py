@@ -314,8 +314,8 @@ class DoIP_Client:
         if type(componentID) == 'int':
             componentID = '%0.2X' % (0xFF & componentID)
 
-        memStart = hex(MemStartAddr).lstrip("0x").rstrip("L").rjust(6, '0') # convert 4096 to "001000"
-        memEnd = hex(MemEndAddres).lstrip("0x").rstrip("L").rjust(6, '0')
+        memStart = hex(MemStartAddr).lstrip("0x").rstrip("L").rjust(8, '0') # convert 4096 to "001000"
+        memEnd = hex(MemEndAddres).lstrip("0x").rstrip("L").rjust(8, '0')
             
         componentID = PadHexwithLead0s(componentID)
         self._DoIPUDSSend(PyUDS.RC + PyUDS.STR + PyUDS.RC_EM + str(componentID) + memStart + memEnd )  # #  TO DO: CHANGE VALUE TO VARAIBLE
@@ -461,7 +461,7 @@ def DoIP_Routine_Control(subfunction, routine, op, verbose=False):
     else:
         print "TCP Socket creation failed."
 
-def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr = 'e000',targetIP='192.168.10.10', verbose=True, multiSegment=True, blocksize=1024):
+def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr = 'e000',targetIP='192.168.10.10', verbose=True, multiSegment=True, segmentsize=1024):
     
     t_FlashStart = time.time()
 
@@ -584,23 +584,39 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
 
     print "\n================================\n=== Enter Progrgramming Loop ===\n================================\n"
     print "%d bytesRemaining" % bytesRemaining
-    print "%d bytes per transfer block" % blocksize
+    print "%d bytes per transfer segment" % segmentsize
 
     imageOffset = 0
     bytesFlashed = 0
-    bytesThisCycle = min(blocksize, bytesRemaining)
-    
-    
+    segmentCount = 0
 
+    progFile = open(flashFile,'rb')
+    print "Opened image file for reading"
+    
     while bytesRemaining:
 
         currentImageOffset = imageOffset + bytesFlashed;
+        currentSegmentOffset = 0
+        bytesThisSegment = min(segmentsize, bytesRemaining)
+
+        segmentData = progFile.read(bytesThisSegment)
+
+        print "read segment %d into buffer, %d bytes" % (segmentCount, len(segmentData))
+
+
+
+            # 
+            # read the segment into a buffer
+            #
+
 
         eraseRunning = True
         while eraseRunning:
 
             #
             # Routine Control: Start Erase Memory
+            #
+            # TODO: Change to the 44 memory address format
             #
             print "\n    ### Erase Memory, %d bytes at address %d" % (bytesThisCycle, currentImageOffset)
             result, payload = DoIPClient.DoIPEraseMemoryKTM(PyUDS.START_ROUTINE, currentImageOffset, currentImageOffset+bytesThisCycle)
@@ -622,32 +638,43 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
             if result == 0 and payload[8:10] == "01":
                 eraseRunning = False
         
-            #
-            # Request Download
-            #
-            print "\n    ### Erase Memory Check Results"
+        #
+        # Request Download 5.3.6
+        #
+        print "\n    ### Erase Memory Check Results"
 
-            hAddressAndLengthFormatIdentifier = "44"
-            hMemAddress = hex(currentImageOffset).lstrip("0x").rstrip("L").rjust(8, '0')
-            hMemSize = hex(bytesThisCycle).lstrip("0x").rstrip("L").rjust(8, '0')
+        hAddressAndLengthFormatIdentifier = "44"
+        hMemAddress = hex(currentImageOffset).lstrip("0x").rstrip("L").rjust(8, '0')
+        hMemSize = hex(bytesThisCycle).lstrip("0x").rstrip("L").rjust(8, '0')
 
-            print "    formatter:" + hAddressAndLengthFormatIdentifier + ", address:" + hMemAddress + ", size:" + hMemSize
-            
-            x = DoIPClient.DoIPRequestDownloadKTM(PyUDS.DATA_FORMAT_ID + hAddressAndLengthFormatIdentifier + hMemAddress + hMemSize)
-            print x
-#            result, payload = DoIPClient.DoIPRequestDownloadKTM(PyUDS.DATA_FORMAT_ID + hAddressAndLengthFormatIdentifier + "20305060")
-            print "        Result = ", result
-            print "        payload = ", payload
-            if result !=0:
-                raise ValueError("Failed to request security seed")
-
-            if result == 0 and payload[8:10] == "01":
-                eraseRunning = False
-
+        print "    formatter:" + hAddressAndLengthFormatIdentifier + ", address:" + hMemAddress + ", size:" + hMemSize
         
+        x = DoIPClient.DoIPRequestDownloadKTM(PyUDS.DATA_FORMAT_ID + hAddressAndLengthFormatIdentifier + hMemAddress + hMemSize)
+        print x
+#            result, payload = DoIPClient.DoIPRequestDownloadKTM(PyUDS.DATA_FORMAT_ID + hAddressAndLengthFormatIdentifier + "20305060")
+        print "        Result = ", result
+        print "        payload = ", payload
+        if result !=0:
+            raise ValueError("Failed to request security seed")
+
+
+        #
+        # Transfer Data 5.3.7
+        #
+        print "\n    ### Transfer Data"
+            DoIPClient.DoIPTransferData(blockIndexStr, block)
+
+        #
+        # Request Transfer Exit 5.3.8
+        #
+        print "\n    ### Request Transfer Exit"
+            DoIPClient.DoIPRequestTransferExit()
+
+
 
         bytesFlashed += bytesThisCycle
         bytesRemaining -= bytesThisCycle
+        segmentCount += 1
 
         print "end of flash cycle, %d bytes flashed, %d bytes remaining." % (bytesFlashed, bytesRemaining)
 
@@ -655,6 +682,26 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
         DoIPClient.DisconnectFromDoIPServer()
 
             
+    #
+    # Routine Control – Start “Checksum Calculation” 5.3.9
+    #
+    print "\n    ### Routine Control – Start \“Checksum Calculation\”"
+
+    #
+    # Routine Control – Request Results “Checksum Calculation”
+    #
+    print "\n    ### Routine Control – Request Results \“Checksum Calculation\”"
+
+    #
+    # Routine Control – Write Data By Identifier – “Dealer Number”
+    #
+    print "\n    ### Write Data By Identifier – \“Dealer Number\”"
+
+    #
+    # Routine Control – Write Data By Identifier – “Date of last flashing”
+    #
+    print "\n    ### Write Data By Identifier – \“Date of last flashing\”"
+
 
 
 
@@ -862,7 +909,7 @@ def main():
     optional.add_argument("-c", "--clientID", nargs = 1, default = ['0001'] ,type = str, help = "Host ECU id to flash from in hex format, i.e. 1111 will be read as 0x1111. Default: 1111")
     optional.add_argument("-s", "--serverID", nargs =1, default = ['e000'],type = str, help = "Target ECU id to flash to in hex format, i.e. 2004 will be read as 0x2004. Default: 2004")
     optional.add_argument("-t", "--targetIP", nargs = 1,default = ['192.168.10.10'], type = str, help = "Target IP address of ECU, e.g. 192.168.7.2. Default: 172.26.200.101")
-    optional.add_argument("-b", "--blocksize", nargs = 1, default = 1024 ,type = int, help = "Transfer block size")
+    optional.add_argument("-b", "--segmentsize", nargs = 1, default = 1024 ,type = int, help = "Transfer segment size")
     optional.add_argument("-v", "--verbose", help="Set verbosity. Default: false", action="store_true")
 
     args = vars(parser.parse_args())
@@ -892,11 +939,11 @@ def main():
         print "Error:: No target IP address specified"
         sys.exit(-1)
                             
-    if not args['blocksize'] or args['blocksize'] < 1:
-        print "Error:: Invalid blocksize, must be a positive integer"
+    if not args['segmentsize'] or args['segmentsize'] < 1:
+        print "Error:: Invalid segmentsize, must be a positive integer"
         sys.exit(-1)
 
-    DoIP_Flash_Hex(0, args['file'][0], targetIP=args['targetIP'][0], verbose=args['verbose'], multiSegment=True, blocksize = args['blocksize'][0])
+    DoIP_Flash_Hex(0, args['file'][0], targetIP=args['targetIP'][0], verbose=args['verbose'], multiSegment=True, segmentsize = args['segmentsize'][0])
 
 if __name__ == '__main__':
     main()
