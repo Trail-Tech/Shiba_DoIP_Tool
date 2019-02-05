@@ -5,6 +5,228 @@ import PyUDS
 import time
 import platform
 import os
+
+
+class PyUDS:
+    ###UDS DEFINITIONS###
+
+    ################################################################################
+    ##### DIAGNOSTIC_SESSION_CONTROL_REQUEST(DSC)###################################
+    ################################################################################
+    DIAGNOSTIC_SESSION_CONTROL_REQUEST = DSC = '10'
+    ################################################################################
+    # DSC sub-function 0x00 : ISOSAE Reserved ######################################
+    # <0x10><sub-function> #########################################################
+    DEFAULT_SESSION = DS = '01'
+    PROGRAMMING_SESSION = PRGS = '02'
+    EXTENDED_DIAGNOSTIC_SESSION = EXTDS = '03'
+    SAFETY_SYSTEM_DIAGNOSTIC_SESSION = SSDS = '04'
+    #DSC sub-function 0x05-0x3F : ISOSAE Reserved
+    #DSC sub-function 0x40-0x5F : vehicle manufacturer specifc
+    #DSC sub-function 0x60-0x7E : system supplier specifc
+    #DSC sub-function 0x7F : ISOSAE Reserved
+    ################################################################################
+    # DSC Positive Response Message/Code (PRM/PRC) #################################
+    # <0x50><sub-function><not supported at Faraday> ###############################
+    DIAGNOSTIC_SESSION_CONTROL_RESPONSE = DSCPR = '50'
+
+
+    ################################################################################
+    ##### CONTROL_DTC_SETTING (CDS) ################################################
+    ################################################################################
+    DIAGNOSTIC_DTC_SETTING_REQUEST = DCTS = '85'
+    ################################################################################
+    # DSC sub-function 0x00 : ISOSAE Reserved ######################################
+    # <0x10><sub-function> #########################################################
+    DTC_OFF = DTCOFF = '82'
+    ################################################################################
+    # DTC Positive Response Message/Code (PRM/PRC) #################################
+    # <0x50><sub-function><not supported at Faraday> ###############################
+    DIAGNOSTIC_DTC_SETTING_RESPONSE = DSCPR = 'C5'
+
+
+    ################################################################################
+    ##### Security Access (SA) ################################################
+    ################################################################################
+    DIAGNOSTIC_SECURITY_ACCESS_REQUEST = DSAREQ = '27'
+    ################################################################################
+    REQUEST_SEED = SARS = '03'
+    SEND_KEY = SASC = '04'
+    ################################################################################
+    # DTC Positive Response Message/Code (PRM/PRC) #################################
+    # <0x50><sub-function><not supported at Faraday> ###############################
+    DIAGNOSTIC_SECURITY_ACCESS_RESPONSE = DSARSP = '67'
+
+
+    ################################################################################
+    ##### ECURESET(ER) #############################################################
+    ################################################################################
+    ECU_RESET = ER = '11'
+    ################################################################################
+    # ECU_RESET sub-function 0x00 : ISOSAE Reserved ################################
+    HARD_RESET = HR = '01'
+    KEY_OFF_ON_RESET = KOFFONR = '02'
+    SOFT_RESET = SR = '03'
+    ENABLE_RAPID_POWER_SHUTDOWN = ERPSD = '04'
+    DISABLE_RAPID_POWER_SHUTDOWN = DRPSD = '05'
+    #ECU_RESET sub-function 0x06-0x3F : ISOSAE Reserved
+    #ECU_RESET sub-function 0x40-0x5F : ISOSAE Reserved
+    #ECU_RESET sub-function 0x60-0x7E : System Supplier Specific
+    #ECU_RESET sub-function 0x7F : ISOSAE Reserved
+    ################################################################################
+    # ER Positive Response Message/Code (PRM/PRC) ##################################
+    # <0x51><sub-function><power down time -- present on ERPSD> ####################
+    ECU_RESET_RESPONSE = ERPR = '51'
+
+
+    ################################################################################
+    ##### SECURITY ACCESS SERVICE(SA) ##################################################
+    ################################################################################
+    SECURITY_ACCESS_SERVICE = SA = '27'
+    # <0x27>,<data record (odd for requestSeed, even for sendKey)>,<optional: security key>
+    # SECURITY ACCESS SERVICE: REQUEST_SEED : <0x01|0x03|0x05|0x07-0x7D>
+    # SECURITY ACCESS SERVICE: SEND_KEY: <0x02|0x04|0x06|0x08-0x7F>
+    ################################################################################
+    # SA Positive Response Message/Code (PRM/PRC) ##################################
+    SECURITY_ACCESS_RESPONSE = SAPR = '67'
+
+
+    ################################################################################
+    ###COMMUNICATION_CONTROL_SERVICE (CC) <0x28><sub-function = [control type]><communication type>
+    ################################################################################
+    COMMUNICATION_CONTROL_SERVICE = CC = '28'
+    ################################################################################
+    ##CC Sub-functions
+    ENABLE_RX_TX = ERXTX = '00'
+    ENABLE_RX_DISABLE_TX = ERXDTX = '01'
+    DISABLE_RX_ENABLE_TX = DRXETX = '02'
+    DISABLE_RX_TX = DRXTX = '03'
+    ENABLE_RX_DISABLE_TX_WITH_ENHANCED_ADDR_INFO = ERXDTXWEAI = '04'
+    ENABLE_RX_TX_WITH_ENHANCED_ADDR_INFO = ERXTXWEAI = '05'
+    ##CC sub-function 0x06-0x3F : ISOSAE Reserved
+    ##CC sub-function 0x40-0x5F : Vehicle Manufacturer Specific
+    ##CC sub-function 0x60-0x7E : System Supplier Specific 
+    ##CC sub-function 0x7F : ISOSAE Reserved 
+    ################################################################################
+    ###CC communication type bit 0-3 (lower nibble)
+    ###CC communication type bit 0-1 encoding 0x0: ISOSAE Reserved 
+    NORMAL_COMMUNICATION_MESSAGES = NCM = '01'
+    NETWORK_MANAGEMENT_COMMUNICATION_MESSAGES = NWMCM = '02'
+    NETWORK_MANAGEMENT_COMMUNICATION_MESSAGES_NORMAL_COMMUNICATION_MESSAGES = NWMCM_NCM = '03'
+    ################################################################################
+    ###CC communication type bit 2-3 : ISOSAE Reserved -- Keep it 0x0 -- See above that it is kept 0x0
+    ################################################################################
+    ###CC subnet number bit 4-7 (upper nibble) -- Sets the setting for the optional subnet number. 
+    DISABLE_OR_ENABLE_SPECIFIED_COMMUNICATION_TYPE = DISENSCT = '0'
+    DISABLE_OR_ENABLE_SPECIFIC_SUBNET_ID_BY_SUBNET_NUMBER = DISENSSIVSN = '1' 
+    #User should reset as needed. The above is defaulted to 1
+    DISABLE_OR_ENABLE_NETWORK_WHICH_REQUEST_IS_RECEIVED_ON_NODE = 'F'
+    #CC PRM <0x68><sub-function >
+    COMMUNICATION_CONTROL_RESPONSE = CCPR = '68'
+
+
+    #TESTER PRESENT <0x3E><Sub-function>#
+    TESTER_PRESENT = TP = '3E'
+    #Subfunctions 
+    ZERO_SUB_FUNCTION = ZSUBF = '00'
+    #0x01-0x7F ISOSAE Reserved 
+    #PRM <7E><Sub-fucntion>
+    TESTER_PRESENT_RESPONSE = TPPR ='7E'
+
+
+
+    #REQUEST_DOWNLOAD0x34. <0x34><data format ID><address and legnth format ID><memory address><memory size>
+    REQUEST_DOWNLOAD = RD = '34'
+    DATA_FORMAT_ID = DFI_00 = "00" #00 is default, else vehicle manufacturer specific, no compression, no encryption
+    ADDRESS_AND_LENGTH_FORMAT_ID = ALFID = '44' #44 ff default. 4 bytes for address, 4 bytes for memory size
+    ##Memory address and memory size length specified by ALFID
+
+    #TRANSFER_DATA0x36 <TD (0x34)><Block sequence counter(block index)><data>
+    TRANSFER_DATA = TD = '36'
+
+    #REQUEST_TRANSFER_EXIT (0x37)
+    REQUEST_TRANSFER_EXIT = RTE = '37'
+
+
+    #READ_DATA_BY_IDENTIFIER0x22##
+    #DIDS: 0x00-0xFF
+    #USE: 0x22<DID1>..<DIDn>
+    READ_DATA_BY_IDENTIFIER = RDBI = '22'
+
+
+
+
+    #WRITE_DATA_BY_IDENTIFIER0x2E##
+    #DIDS: 0x00-0xFF
+    #USE:0x22<DID><DataRecord>
+    WRITE_DATA_BY_IDENTIFIER = WDBI = '2E'
+
+
+
+    ### Routine Control 0x31 ####
+    ROUTINE_CONTROL = RC = '31'
+    START_ROUTINE = STR = '01'
+    STOP_ROUTINE = STPR = '02'
+    REQUEST_ROUTINE_RESULTS = RRR = '03'
+    #all else isosae reserved
+
+    #FF Supported Routines 
+    ERASE_MEMORY = RC_EM = 'FF00'
+    CHECK_MEMORY = RC_CM = '0202'
+    CHECK_PROGRAMMING_DEPENDENCIES = RC_CPD = 'FF01' # might be deprecated
+    REQUEST_COMPONENT_HASH_VALUE = RC_RCHV = 'FF02' #might be deprecated
+    APPLICATION_AUTHORIZATION = RC_AA = 'FF03'
+
+
+
+
+    #NEGATIVE RESPONSE MESSAGE/CODE (NRM/NRC)
+    SUB_FUNCTION_NOT_SUPPORT = SFNS = '12'
+    INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT = IMLOIF = '13'
+    CONDITIONS_NOT_CORRECT = CNC = '22'
+    REQUEST_SEQUENCE_ERROR = RSE = '24'
+    REQUEST_OUT_OF_RANGE = ROOR = '31'
+    SECURITY_ACCESS_DENIED = SAD = '33'
+    INVALID_KEY = IK = '35'
+    EXCEEDED_NUMBER_OF_ATTEMPS = ENOA = '36'
+    REQUIRED_TIME_DELAY_NOT_EXPIRED = RTDNE = '37'
+    GENERAL_PROGRAMMING_FAILURE = GPF = '72'
+
+
+    MEMORY_OPERATION_PENDING = MOPNDNG = '7F3178'
+    TRANSFER_OPERATION_PENDING = TOPNDNG = '7F3678'
+
+
+
+    #COMMON DIDs
+    DID_PROGRAMMING_ATTEMPT_COUNTER = DID_PATTCTR = 'F110'
+    DID_WRITE_FINGERPRINT 			= DID_WRFPRNT = 'F15A'
+    DID_READ_FINGERPRINT			= DID_REFPRNT = 'F15B'
+    DID_BOOT_SW_ID					= DID_BOOTSID = 'F180'
+    DID_APP_CAL_SW_ID				= DID_APCASID = 'F181'
+    DID_ACTIVE_DIAGNOSTIC_SESSION	= DID_ADIASES = 'F186'
+    DID_ECU_SW_NUMBER				= DID_ECUSWNO = 'F188'
+    DID_VIN_ID						= DID_VINIDNO = 'F190'	
+    DID_APPLICATION_FLASH_FILE_NAME = DID_AFFN    = 'F111'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # import argparse
 
 # DoIP Header Structure : <protocol version><inverse protocol version><payload type><payloadlength><payload>
@@ -115,10 +337,10 @@ class DoIP_Client:
             self._TCP_Socket.settimeout(5.0)
             # self._TCP_Socket.setblocking(1)
             self._TCP_Socket.bind((self._localIPAddr, self._localPort))
-            print "Socket successfully created: Binded to %s:%d" % (self._TCP_Socket.getsockname()[0], self._TCP_Socket.getsockname()[1])
+            #print "Socket successfully created: Bound to %s:%d" % (self._TCP_Socket.getsockname()[0], self._TCP_Socket.getsockname()[1])
 
         except socket.error as err:
-            print "Socket creation failed with error: %s" % err
+            print "Error :: Socket creation failed with error: %s" % err
             if '[Errno 10049]' in str(err):
                 print "Consider changing your machine's TCP settings so that it has a satic IP of 172.26.200.15"
             self._TCP_Socket = None
@@ -140,22 +362,21 @@ class DoIP_Client:
                     self._TCP_Socket.settimeout(5.0)
                     # self._TCP_Socket.setblocking(1)
                     self._TCP_Socket.bind((self._localIPAddr, self._localPort))
-                    print "Socket successfully created: Binded to %s:%d\n" % (
-                        self._TCP_Socket.getsockname()[0], self._TCP_Socket.getsockname()[1])
+                    #print "Socket successfully created: Binded to %s:%d\n" % (self._TCP_Socket.getsockname()[0], self._TCP_Socket.getsockname()[1])
                 except socket.error as err:
-                    print "Socket creation failed with error %s" % (err)
+                    print "Error :: Socket creation failed with error %s" % (err)
                     self._TCP_Socket = None
                     return err
             if self._TCP_Socket != None:
                 try:
-                    print "Connecting to DoIP Server at %s:%d... " % (address, port)
+                    #print "Connecting to DoIP Server at %s:%d... " % (address, port)
                     self._targetIPAddr = address
                     self._targetPort = port
                     self._TCP_Socket.connect((address, port))
                     self._isTCPConnected = True
-                    print "Connection to DoIP established\n"
+                    #print "Connection to DoIP established\n"
                 except socket.error as err:
-                    print "Unable to connect to socket at %s:%d. Socket failed with error: %s" % (address, port, err)
+                    print "Error :: Unable to connect to socket at %s:%d. Socket failed with error: %s" % (address, port, err)
                     self._targetIPAddr = None
                     self._targetPort = None
                     self._isTCPConnected = False
@@ -206,8 +427,8 @@ class DoIP_Client:
                 payloadLength = "%.8X" % (len(payload) / 2)  # divide by 2 because 2 nibbles per byte
                 activationString = DoIPHeader + payloadLength + payload
                 self._TxDoIPMsg.UpdateMsg(activationString, self._isVerbose)
-                print "Requesting routing activation..."
                 if self._isVerbose:
+                    print "Requesting routing activation..."
                     print "TCP SEND ::"
                     self._TxDoIPMsg.PrintMessage()
                 self._TCP_Socket.send(activationString.decode("hex"))
@@ -218,7 +439,8 @@ class DoIP_Client:
                 if DoIPResponse.payload[0:2] == '10':
                     self._isRoutingActivated = True
                     self._targetECUAddr = DoIPResponse.targetAddress
-                    print "Routing activated with ECU: %s\n" % (self._targetECUAddr)
+                    if self._isVerbose:
+                        print "Routing activated with ECU: %s\n" % (self._targetECUAddr)
                     return 0
                 else:
                     self._isRoutingActivated = False
@@ -287,20 +509,22 @@ class DoIP_Client:
             return (0, self._RxDoIPMsg.payload)
 
     def DoIPReadDID(self, DID):
+        if self._isVerbose: print "Request READ DID"
         self._DoIPUDSSend(PyUDS.RDBI + DID)
         return self._DoIPUDSRecv()
 
     def DoIPWriteDID(self, DID, msg):
+        if self._isVerbose: print "Request Write DID"
         self._DoIPUDSSend(PyUDS.WDBI + DID + msg)
         return self._DoIPUDSRecv()
 
     def DoIPRoutineControl(self, subfunction, routine_id, op_data):
-        print "        Sending routine control command, subfunction:" + str(subfunction) + ", routine id:" + str(routine_id)
+        if self._isVerbose: print "        Sending routine control command, subfunction:" + str(subfunction) + ", routine id:" + str(routine_id)
         self._DoIPUDSSend(PyUDS.RC + subfunction + routine_id + op_data)
         return self._DoIPUDSRecv()
 
     def DoIPEraseMemory(self, componentID):
-        print "Erasing memory..."
+        if self._isVerbose: print "Erasing memory..."
         
         if type(componentID) == 'int':
             componentID = '%0.2X' % (0xFF & componentID)
@@ -309,16 +533,8 @@ class DoIP_Client:
         self._DoIPUDSSend(PyUDS.RC + PyUDS.STR + PyUDS.RC_EM + str(componentID))  # #  TO DO: CHANGE VALUE TO VARAIBLE
         return self._DoIPUDSRecv()
 
-    def DoIPEraseMemoryKTM(self, MemStartAddr, MemEndAddres):
-        
-        memStart = hex(MemStartAddr).lstrip("0x").rstrip("L").rjust(8, '0') # convert 4096 to "001000"
-        memEnd = hex(MemEndAddres).lstrip("0x").rstrip("L").rjust(8, '0')
-            
-        self._DoIPUDSSend(PyUDS.RC + PyUDS.STR + PyUDS.RC_EM + memStart + memEnd )  # #  TO DO: CHANGE VALUE TO VARAIBLE
-        return self._DoIPUDSRecv()
-
     def DoIPCheckMemory(self, componentID, CRCLen='00', CRC='00'):
-        print "Checking memory..."
+        if self._isVerbose: print "Checking memory..."
         
         if type(componentID) == 'int':
             componentID = '%.2X' % (0xFF & componentID)
@@ -335,7 +551,12 @@ class DoIP_Client:
         self._DoIPUDSSend(PyUDS.DSAREQ + msg)
         return self._DoIPUDSRecv()
 
+    def DoIPCommunicationControl(self, msg):
+        self._DoIPUDSSend(PyUDS.COMMUNICATION_CONTROL_SERVICE + msg)
+        return self._DoIPUDSRecv()
+
     def DoIPSwitchDiagnosticSession(self, sessionID=1):
+        if self._isVerbose: print "Request Switch Diagnostic Session, new session: ", sessionID
         targetSession = ''
         if int(sessionID) == 1:
             self._DoIPUDSSend(PyUDS.DSC + PyUDS.DS)
@@ -349,17 +570,17 @@ class DoIP_Client:
         return self._DoIPUDSRecv()
 
     def DoIPRequestDownload(self, memAddr, memSize, dataFormatID=PyUDS.DFI_00, addrLenFormatID=PyUDS.ALFID):
-        print "Requesting download data..."
+        if self._isVerbose:print "Requesting download data..."
         self._DoIPUDSSend(PyUDS.RD + dataFormatID + addrLenFormatID + memAddr + memSize)
         if (self._DoIPUDSRecv() == 0):
-            print "Request download data success\n"
+            if self._isVerbose:print "Request download data success\n"
             dlLenFormatID = int(self._RxDoIPMsg.payload[2], 16)  # number of bytes
         else:
             return -1
         return int(self._RxDoIPMsg.payload[4:(2 * dlLenFormatID + 4)], 16)
 
     def DoIPRequestDownloadKTM(self, msg):
-        print "Requesting download data..."
+        if self._isVerbose:print "Requesting download data..."
         self._DoIPUDSSend(PyUDS.RD + msg)
         return self._DoIPUDSRecv()
 
@@ -368,7 +589,7 @@ class DoIP_Client:
         return self._DoIPUDSRecv()
 
     def DoIPRequestTransferExit(self):
-        print "Requesting transfer exit..."
+        if self._isVerbose:print "Requesting transfer exit..."
         self._DoIPUDSSend(PyUDS.RTE)
         return self._DoIPUDSRecv()
 
@@ -376,10 +597,10 @@ class DoIP_Client:
         self._isVerbose = verbose
 
     def Terminate(self):
-        print "Closing DoIP Client ..."
+        if self._isVerbose:print "Closing DoIP Client ..."
         self._TCP_Socket.close()
         self._logHndl.close()
-        print "Good bye"
+        if self._isVerbose:print "Good bye"
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.Terminate()
@@ -465,17 +686,41 @@ def readSegment(fileObj, segmentSize=2048):
             break
         yield segment
 
+def calcChecksum16(segment, bytes):
+    #print "calcChecksum16:"
+    checksum = 0
+    for b in segment:
+        #print "b = ", b, ord(b)
+        checksum += ord(b)
+        #print "checksum: ", checksum
+
+    return (checksum & 0x0000ffff)
 
 
-def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr = 'e000',targetIP='192.168.10.10', verbose=True, multiSegment=True, segmentsize=4096, blocksize=256):
+
+def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr = 'e000',targetIP='192.168.10.10', verbose=True, multiSegment=True, segmentSize=4096, blockSize=256):
     
     t_FlashStart = time.time()
 
     bytesRemaining = os.stat(flashFile).st_size
-    print "\nFlashing " + str(flashFile) + " to component ID : " + str(componentID)
-    print "flashing " + str(bytesRemaining) + " bytes\n"
 
-    # start a DoIP client
+    if isinstance(segmentSize, list):
+        segmentSize = segmentSize[0]
+
+    if isinstance(blockSize, list):
+        blockSize = blockSize[0]
+
+    print "    flashing      " ,flashFile
+    print "    file size     " ,bytesRemaining, "bytes"
+    print "    segment size: ", segmentSize, "bytes"
+    print "    block size:   ", blockSize, "bytes"
+    print "    test addr :   ", hostECUAddr
+    print "    server addr:  ", serverECUAddr
+    print "    server IP:    ", targetIP
+
+    #
+    # start a DoIP client and connect to the server
+    #
     DoIPClient = DoIP_Client(ECUAddr = hostECUAddr)
     DoIPClient.SetVerbosity(verbose)
 
@@ -491,10 +736,13 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
     if not DoIPClient._isRoutingActivated:
         raise IOError("ISO 134000 Routing failed")
 
+    if (segmentSize % blockSize != 0):
+        raise ValueError("segment size must be a multiple of blocksize")
+
     print "\n=============================\n=== Pre-Progrmamming Step ===\n=============================\n"
 
     #
-    # Get Application Flash File Name
+    # Retrieve Application Flash File Name
     #
     print "    ### Get Applicaiton Flash File Name"
     result, payload = DoIPClient.DoIPReadDID(PyUDS.DID_APPLICATION_FLASH_FILE_NAME)
@@ -506,7 +754,7 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
         print "    Application Flash File Name: " + binascii.unhexlify(payload[6:]) + "\n"
 
     #
-    # get Software Version Bootloader
+    # Retrieve Software Version Bootloader
     #
     print "    ### Get Software Version Number"
     result, payload = DoIPClient.DoIPReadDID(PyUDS.DID_BOOT_SW_ID)
@@ -517,6 +765,8 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
     else:
         print "    Application Flash File Name: " + binascii.unhexlify(payload[6:]) + "\n"
 
+
+
     #
     # Set sesson to Extended Diagnostic Session
     #
@@ -526,32 +776,32 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
     print "        payload = ", payload
     if result !=0:
         raise ValueError("Failed to switch to extended diagnostic session")
+    # TODO: This shoudl get sent as a broadcast and not be ack'd by the server
+    
 
     #
     # Control DTC Setting, DTC OFF
     #
-    print "\n    ### Set DTC Off"
+    print "\n    ### Disable Non-Diagnostic Information"
     result, payload = DoIPClient.DoIPControlDTCSetting(PyUDS.DTC_OFF)
     print "        Result = ", result
     print "        payload = ", payload
     if result !=0:
         raise ValueError("Failed to switch to set DTC off")
+    # TODO: This shoudl get sent as a broadcast and not be ack'd by the server
+
 
     #
     # Communication Control, Disable non-diagnostic communicaiton
     #
-    print "\n    ### TODO: Disable Non-Diagnostic Information"
+    print "\n    ### Disable Non-Diagnostic Information"
+    result, payload = DoIPClient.DoIPCommunicationControl(PyUDS.DISABLE_RX_ENABLE_TX+PyUDS.NWMCM_NCM)
+    print "        Result = ", result
+    print "        payload = ", payload
+    if result !=0:
+        raise ValueError("Failed to switch to set DTC off")
+    # TODO: This shoudl get sent as a broadcast and not be ack'd by the server
 
-
-    #reset connection to server
-    #DoIPClient.DisconnectFromDoIPServer()
-    #DoIPClient.ConnectToDoIPServer(address = targetIP, port = 13400, routingActivation = True, targetECUAddr = serverECUAddr)
-
-    #if not DoIPClient._isTCPConnected:
-    #    raise IOError("TCP connection Failed")
-        
-    #if not DoIPClient._isRoutingActivated:
-    #    raise IOError("ISO 134000 Routing failed")
 
     print "\n=========================\n=== Progrmamming Step ===\n=========================\n"
 
@@ -590,7 +840,8 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
 
     print "\n================================\n=== Enter Progrgramming Loop ===\n================================\n"
     print "%d bytesRemaining" % bytesRemaining
-    print "%d bytes per transfer segment" % segmentsize
+    print "%d bytes per segment" % 0, segmentSize
+    print "%d bytes per transfer block" % blockSize
 
     imageOffset = 0
     bytesFlashed = 0
@@ -599,39 +850,32 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
     flashFileObject = open(flashFile,'rb')
     print "Opened image file for reading"
     
-    #while bytesRemaining:
-    for segment in readSegment(flashFileObject, min(segmentsize, bytesRemaining)):
-
+    # 
+    # read the segment into a buffer as we iterate through the generator
+    # for the input file.
+    #
+    for segment in readSegment(flashFileObject, min(segmentSize, bytesRemaining)):
         currentImageOffset = imageOffset + bytesFlashed;
         currentSegmentOffset = 0
-        bytesThisSegment = min(segmentsize, bytesRemaining)
-
-        #segmentData = progFile.read(bytesThisSegment)
-        #segmentData = readSegment(flashFileObject, bytesThisSegment)
+        bytesThisSegment = min(segmentSize, bytesRemaining)
         print "read segment %d into buffer, %d bytes" % (segmentCount, bytesThisSegment)
-
-
-
-
-
-
-
-
-            # 
-            # read the segment into a buffer
-            #
-
 
         eraseRunning = True
         while eraseRunning:
-
             #
             # Routine Control: Start Erase Memory
             #
-            # TODO: Change to the 44 memory address format
-            #
             print "\n    ### Erase Memory, %d bytes at address %d" % (bytesThisSegment, currentImageOffset)
-            result, payload = DoIPClient.DoIPEraseMemoryKTM(currentImageOffset, currentImageOffset+bytesThisSegment)
+            #result, payload = DoIPClient.DoIPEraseMemoryKTM(currentImageOffset, currentImageOffset+bytesThisSegment)
+
+            memStartAddr = currentImageOffset
+            memEndAddr = memStartAddr + bytesThisSegment
+            hMemStart = hex(memStartAddr).lstrip("0x").rstrip("L").rjust(8, '0') # convert 4096 to "001000"
+            hMemEnd = hex(memEndAddr).lstrip("0x").rstrip("L").rjust(8, '0')
+
+            command = PyUDS.START_ROUTINE + PyUDS.ERASE_MEMORY
+            
+            result, payload = DoIPClient.DoIPRoutineControl(PyUDS.START_ROUTINE , PyUDS.ERASE_MEMORY, hMemStart + hMemEnd)
             print "        Result = ", result
             print "        payload = ", payload
             if result !=0:
@@ -646,8 +890,6 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
             print "        payload = ", payload
             if result !=0:
                 raise ValueError("Failed to request security seed")
-
-
 
             print "        General Routine Status", payload[8:10]
             print "        Erase result          ", payload[11:12]
@@ -680,28 +922,47 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
         # Transfer Data 5.3.7
         #
         print "\n    ### Transfer Data"
-        #DoIPClient.DoIPTransferData(blockIndexStr, block)
-
-        #segmentData = progFile.read(bytesThisSegment)
-        blockSize = min(blocksize, bytesRemaining)
+        print "         blockSize:", blockSize
+        print "         segmentSize:", segmentSize
+        print "         bytesRemaining:", bytesRemaining
+        print "         len(segment):", len(segment)
+        
+        blockSize = min(blockSize, bytesRemaining)
         blockCount = 0
-        minAddr = blockCount * blockSize
-        maxAddr = minAddr + blockSize+1
         hexDataList = []
         blockByteCount = 0
         maxBlockByteCount = blockSize
         hexDataStr = ""
-        for address in range(minAddr, maxAddr + 1):
-            # print '%.8X\t%.2X' % (address,ih[address])
-            hexDataStr = hexDataStr + '%.2X' % ord(segment[address])
-            blockByteCount += 1
-            if blockByteCount == maxBlockByteCount:
-                hexDataList.append(hexDataStr)
-                hexDataStr = "" 
-                blockByteCount = 0
-        hexDataList.append(hexDataStr)
+
+        segmentBytesRemaining = segmentSize
+        
+        while segmentBytesRemaining:
+            minAddr = blockCount * blockSize
+            maxAddr = minAddr + blockSize+1
+            print "         minAddr:", minAddr
+            print "         maxAddr:", maxAddr
+
+            for address in range(minAddr, maxAddr + 1):
+                # print '%.8X\t%.2X' % (address,ih[address])
+                hexDataStr = hexDataStr + '%.2X' % ord(segment[address])
+                blockByteCount += 1
+                if blockByteCount == maxBlockByteCount:
+                    hexDataList.append(hexDataStr)
+                    hexDataStr = "" 
+                    blockByteCount = 0
+            hexDataList.append(hexDataStr)
+
+            blockCount += 1
+            #segmentBytesRemaining = min(0, segmentBytes-
+            #
+            ##
+
 
         print "%d elements in hexDataList" % len(hexDataList)
+        for e in hexDataList:
+            print len(e), e
+
+        sys.exit()
 
 
         blockIndex = 0
@@ -720,9 +981,80 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
         # Request Transfer Exit 5.3.8
         #
         print "\n    ### Request Transfer Exit"
+        result, payload = DoIPClient.DoIPRequestTransferExit()
+        print "        Result = ", result
+        print "        payload = ", payload
+        if result !=0:
+            raise ValueError("Failed to Start Erase Memory")
+
+        #
+        #   Routine Control, Request Checksum Results.
+        #       31010201 Start Checksum
+        #       ssssssss start address 32 bit
+        #       eeeeeeee end address 32 bit
+        #       cccc 16 bit checksum
+        #
+        print "\n    ### Routine Control, Start Checksum."
+
+        # currentImageOffset: offset of this segment in the image.
+        # bytesThisSegment: size of the current segment
+        # this checksum 
+
+        checksum16 = calcChecksum16(segment, bytesThisSegment)
+
+        assert(len(segment) == bytesThisSegment)
+
+        hMemStartAddress = hex(currentImageOffset).lstrip("0x").rstrip("L").rjust(8, '0')
+        hMemEndaddress = hex(currentImageOffset+bytesThisSegment).lstrip("0x").rstrip("L").rjust(8, '0')
+        hChecksum = hex(checksum16).lstrip("0x").rstrip("L").rjust(4, '0')
+
+
+
+        result, payload = DoIPClient.DoIPRoutineControl(PyUDS.START_ROUTINE, "0201", hMemStartAddress+hMemEndaddress+hChecksum )
+        print "        Result = ", result
+        print "        payload = ", payload
+        if result !=0:
+            raise ValueError("Failed to Start Erase Memory")
+
+        responseId = payload[0:2]
+        subFunction = payload[2:4]
+        checksum = payload[4:8]
+        result = payload[8:10]
+
+        print "        service     :", responseId
+        print "        subfunction :", subFunction
+        print "        checksum    :", checksum
+        print "        result      :", result
+
+
+
+        #
+        # Routine Control: Verify checksum results
+        #
+        print "\n    ### Erase Memory Check Results"
+        result, payload = DoIPClient.DoIPRoutineControl(PyUDS.REQUEST_ROUTINE_RESULTS, "0201", hChecksum )
+        print "        Result = ", result
+        print "        payload = ", payload
+        if result !=0:
+            raise ValueError("Failed to request security seed")
+
+        responseId = payload[0:2]
+        subFunction = payload[2:4]
+        checksum = payload[4:8]
+        routineStatus = payload[8:10]
+        checksumResult = payload[10:12]
+
+
+        print "        service       :", responseId
+        print "        subfunction   :", subFunction
+        print "        checksum      :", checksum
+        print "        routineStatus :", routineStatus
+        print "        checksumResult:", checksumResult
+
+
         #DoIPClient.DoIPRequestTransferExit()
 
-        #sys.exit()
+        sys.exit()
 
 
         bytesFlashed += bytesThisSegment
@@ -752,194 +1084,60 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
     print "\n    ### Write data by identifier, Date of last Flash"
 
 
-
-
-    garbage = '''
-                    print "\tRead success"
-                    print "\tWriting new tester finger print"
-                    # to do: we will need to replace the first line with the date
-                    if DoIPClient.DoIPWriteDID(PyUDS.DID_WRFPRNT, '180727' + \
-                                                                    '484F4E472D2D4849' + \
-                                                                    '4C2D544553542D54' + \
-                                                                    '45414D0304050607' + \
-                                                                    '08090A0B0C0D0E0F' + \
-                                                                    '0001020304050607' + \
-                                                                    '5858585858585858') == 0:
-                        print "\tWrite success"
-                        print "\tVerifying new tester finger print"
-
-                        # compare with the date here
-                        if DoIPClient.DoIPReadDID(PyUDS.DID_REFPRNT) == 0:
-                            # read and store old BL SW ID
-                            # to-do: decipher and store relevant info
-                            print "\tRead success"
-                            print "\tReading Bootloader SW ID"
-                            if DoIPClient.DoIPReadDID(PyUDS.DID_BOOTSID) == 0:
-
-                                # read and store old APP and CAL SW ID
-                                # to-do: decipher and store relevant info
-                                print "\tRead success"
-                                print "\tReading Application and Calibration SW ID"
-                                if DoIPClient.DoIPReadDID(PyUDS.DID_APCASID) == 0:
-                                    print "\tRead success"
-                                    print "Pre-download checks complete\n"
-
-                                    # Erase component memory for target component
-                                    if DoIPClient.DoIPEraseMemory(componentID) == 0:
-                                        print "Erase memory success\n"
-                                    else:
-                                        downloadErr = True
-                                else:
-                                    downloadErr = True
-                            else:
-                                downloadErr = True
-                        else:
-                            downloadErr = True
-                    else:
-                        downloadErr = True
-                else:
-                    downloadErr = True
-
-                if not downloadErr:
-                    print "Loading hex file: " + ihexFP
-                    from intelhex import IntelHex
-                    ih = IntelHex()
-                    ih.loadhex(ihexFP)
-
-                    if multiSegment:
-                        print "Downloading in multiple segments..."
-                        segments = ih.segments()
-                    else:
-                        print "Downloading in a single filled segment..."
-                        minAddr = ih.minaddr()
-                        maxAddr = ih.maxaddr()
-                        segments = [(ih.minaddr(), ih.maxaddr())]
-
-                    for (minAddr, maxAddr) in segments:
-
-                        if multiSegment:
-                            maxAddr -= 1
-
-                        memSize = maxAddr - minAddr + 1
-
-                        minAddrStr = "%.8X" % minAddr
-                        maxAddrStr = "%.8X" % maxAddr
-                        memSizeStr = "%.8X" % memSize
-                        print "\tStart Address: " + minAddrStr + " (%.10d)" % minAddr
-                        print "\tEnd Address:   " + maxAddrStr + " (%.10d)" % maxAddr
-                        print "\tTotal Memory:  " + memSizeStr + " (%.10d)\n" % memSize
-
-                        # request download here. Set maxBlockByteCount to valu from request download
-                        maxBlockByteCount = DoIPClient.DoIPRequestDownload(minAddrStr, memSizeStr)
-                        if maxBlockByteCount >= 2:
-                            maxBlockByteCount -= 2  # subtract 2 for SID and index
-                        else:
-                            print "Error while requesting download data. Exiting out of flash sequencing"
-                            downloadErr = True
-                            break
-
-                        blockByteCount = 0
-                        hexDataStr = ''
-                        hexDataList = []
-
-                        for address in range(minAddr, maxAddr + 1):
-                            # print '%.8X\t%.2X' % (address,ih[address])
-                            hexDataStr = hexDataStr + '%.2X' % ih[address]
-                            blockByteCount += 1
-                            if blockByteCount == maxBlockByteCount:
-                                hexDataList.append(hexDataStr)
-                                hexDataStr = ''
-                                blockByteCount = 0
-                        hexDataList.append(hexDataStr)
-                        blockIndex = 1
-
-                        # turn off verbosity, less you be spammed!
-                        if DoIPClient._isVerbose:
-                            DoIPClient.SetVerbosity(False)
-
-                        print "Transfering Data -- Max block size(bytes): 0x%.4X (%d)" % (
-                            maxBlockByteCount, maxBlockByteCount)
-
-                        # start download progress bar
-                        bar = progressbar.ProgressBar(maxval=len(hexDataList),
-                                                        widgets=[progressbar.Bar('=', '[', ']'), ' ',
-                                                                progressbar.Percentage()])
-                        bar.start()
-                        bar.update(blockIndex)
-
-                        t_Start = time.time()
-
-                        # begin transferring data
-                        for block in hexDataList:
-                            blockIndexStr = '%.2X' % (blockIndex & 0xFF)
-                            if DoIPClient.DoIPTransferData(blockIndexStr, block) != 0:
-                                downloadErr = True
-                                break
-                            bar.update(blockIndex)
-                            blockIndex += 1
-
-                        bar.finish()
-
-                        if not downloadErr:
-                            if DoIPClient.DoIPRequestTransferExit() == 0:
-                                t_Finish = time.time()
-                                t_Download = int(t_Finish - t_Start)
-                                hr_Download = t_Download / 3600
-                                min_Download = t_Download / 60 - hr_Download * 60
-                                sec_Download = t_Download - hr_Download * 3600 - min_Download * 60
-                                print "Download complete. Elapsed download time: %.0fdhr %.0fmin %.0fdsec" % (
-                                    hr_Download, min_Download, sec_Download)
-                                print 'Total Blocks sent: 		%d' % (len(hexDataList))
-                                print 'Block size(bytes): 		%d' % (len(hexDataList[0]) / 2)
-                                print 'Final block size(bytes):	%d\n' % (len(hexDataList[len(hexDataList) - 1]) / 2)
-
-                            else:
-                                print "Request transfer exit failure. Exiting out of flash sequence"
-                                downloadErr = True
-                                break
-                        else:
-                            print "Transfer data failure. Exiting out of flash sequence"
-                            downloadErr = True
-                            break
-
-                    # reset verbosity
-                    if verbose:
-                        DoIPClient.SetVerbosity(True)
-
-                    if not downloadErr:
-                        # request check memory
-                        if DoIPClient.DoIPCheckMemory(componentID) == 0:
-                            if DoIPClient._RxDoIPMsg.payload[9] == '0':
-                                print "Check memory passed. Authorizing software update\n"
-                            # if pass, then authorize application . to do: application authorization
-                            else:
-                                print "Check memory failed. Software update is invalid. Exiting out of update sequence\n"
-
-                            print "Switching to default diagnostic session..."
-                            print "\tWarning :: ECU will reset"
-                            if DoIPClient._DoIPUDSSend(PyUDS.DSC + PyUDS.DS) == 0:
-                                print "Successfully switched to default diagnostic session\n"
-                                print "Software update success!!\n"
-
-                                t_FlashEnd = time.time()
-                                t_Flash = int(t_FlashEnd - t_FlashStart)
-                                hr_Flash = t_Flash / 3600
-                                min_Flash = t_Flash / 60 - hr_Flash * 60
-                                sec_Flash = t_Flash - hr_Flash * 3600 - min_Flash * 60
-                                print "-----------------------------------------------------------------------------------"
-                                print "Flash sequence complete. Elapsed flash time: %.0fdhr %.0fmin %.0fdsec \n" % (
-                                    hr_Flash, min_Flash, sec_Flash)
-                                print "-----------------------------------------------------------------------------------"
-
-                        else:
-                            print "Error while checking memory. Exiting out of flash sequence."
-                    else:
-                        print "Error during post transfer operations.\n"
-
-                    # disconnect from the server gracefully please
-'''
     print "Exiting out of flash sequence...\n"
     DoIPClient.DisconnectFromDoIPServer()
+
+
+
+def DoIP_DID_Access(verbose, did, writeVal=None, hostECUAddr = '0001', serverECUAddr = 'e000',targetIP='192.168.10.10'):
+    DoIPClient = DoIP_Client(ECUAddr = hostECUAddr)
+    DoIPClient.SetVerbosity(verbose)
+
+    if not DoIPClient._TCP_Socket:
+        raise IOError("TCP Setup Failed")
+
+    downloadErr = False
+    DoIPClient.ConnectToDoIPServer(address = targetIP, port = 13400, routingActivation = True, targetECUAddr = serverECUAddr)
+
+    if not DoIPClient._isTCPConnected:
+        raise IOError("TCP connection Failed")
+        
+    if not DoIPClient._isRoutingActivated:
+        raise IOError("ISO 134000 Routing failed")
+
+    print "    DID:      " ,did
+    print "    writeVal: " ,writeVal
+    print "    targetIP: ", targetIP
+
+    if writeVal == None:
+        #
+        # Retrieve Application Flash File Name
+        #
+        print "    ### Query DID: ", did
+        result, payload = DoIPClient.DoIPReadDID(did)
+        if result < 0 :
+            raise ValueError("could not reterive DID_HEX_PROG_FILE_NAME")
+
+        print "result-data: ", payload[6:]
+
+        # if it's all ascii, then print the acsii string
+        stringVal = binascii.unhexlify(payload[6:])
+
+        printable=True
+        for c in stringVal:
+            if ord(c) < 32 or ord(c) >= 127:
+                printable = False
+
+        if printable:
+            print "string-value: ", stringVal
+        else:
+            print "not printable as a string..."
+
+
+
+    print "ClosingDown...\n"
+    DoIPClient.DisconnectFromDoIPServer()
+
 
 
 def main():
@@ -958,53 +1156,56 @@ def main():
     optional.add_argument("-c", "--clientID", nargs = 1, default = ['0001'] ,type = str, help = "Host ECU id to flash from in hex format, i.e. 1111 will be read as 0x1111. Default: 1111")
     optional.add_argument("-s", "--serverID", nargs =1, default = ['E100'],type = str, help = "Target ECU id to flash to in hex format, i.e. 2004 will be read as 0x2004. Default: 2004")
     optional.add_argument("-t", "--targetIP", nargs = 1,default = ['192.168.10.10'], type = str, help = "Target IP address of ECU, e.g. 192.168.7.2. Default: 172.26.200.101")
-    optional.add_argument("-S", "--segmentsize", nargs = 1, default = 4096 ,type = int, help = "Transfer segment size (file read size)")
-    optional.add_argument("-B", "--blocksize", nargs = 1, default = 256 ,type = int, help = "Transfer command block size (transfer block)")
+    optional.add_argument("-S", "--segmentSize", nargs = 1, default = 4096 ,type = int, help = "Transfer segment size (file read size)")
+    optional.add_argument("-B", "--blockSize", nargs = 1, default = 256 ,type = int, help = "Transfer command block size (transfer block)")
     optional.add_argument("-v", "--verbose", help="Set verbosity. Default: false", action="store_true")
+    optional.add_argument("-d", "--did", nargs = 1, default = ['0001'] ,type = str, help="query/set DID, enter in hex format (e.g. FE08)")
+
 
     args = vars(parser.parse_args())
 
-    if args['file']:
-        print ".swu File Path: " + args['file'][0]
-        print ".swu File Size: " + str(os.stat(args['file'][0]).st_size/1000) + "kb"
-    else:
+
+    if args['did']:
+        print "DID Query/Set"
+        DoIP_DID_Access(targetIP=args['targetIP'][0],          
+                        verbose=args['verbose'], 
+                        did = args['did'][0])
+        sys.exit(1)
+
+                           
+
+
+
+    if not args['file']:
         print "Error:: No .swu file provided"			
         sys.exit(-1)
 
-    if args['clientID']:
-        print "Client ECU ID: " + args['clientID'][0]
-    else:
+    if not args['clientID']:
         print "Error:: No host/client ECU address specified"
         sys.exit(-1)
 
-    if args['serverID']:
-        print "Server ECU ID: " + args['serverID'][0]
-    else:
+    if not args['serverID']:
         print "Error:: No target/server ECU address specified"
         sys.exit(-1)
 
-    if args['targetIP']:
-        print "Server ECU IP Addr: " + args['targetIP'][0]
-    else:
+    if not args['targetIP']:
         print "Error:: No target IP address specified"
         sys.exit(-1)
                             
-    if not args['segmentsize'][0] or args['segmentsize'][0] < 1:
-        print "Error:: Invalid segmentsize, must be a positive integer"
+    if not args['segmentSize'] or args['segmentSize'] < 1:
+        print "Error:: Invalid segmentSize, must be a positive integer"
         sys.exit(-1)
 
-    if not args['blocksize'][0] or args['blocksize'][0] < 1 or  args['blocksize'][0] > args['segmentsize'][0]:
-        print "Error:: Invalid blocksize, must be a positive integer and no larger than a segment"
+    if not args['blockSize'] or args['blockSize'] < 1 or  args['blockSize'] > args['segmentSize']:
+        print "Error:: Invalid blockSize, must be a positive integer and no larger than a segment"
         sys.exit(-1)
-
-    print args
 
     DoIP_Flash_Hex(0, args['file'][0], 
             targetIP=args['targetIP'][0], 
             verbose=args['verbose'], 
             multiSegment=True, 
-            segmentsize = args['segmentsize'][0], 
-            blocksize = args['blocksize'][0])
+            segmentSize = args['segmentSize'], 
+            blockSize = args['blockSize'])
 
 if __name__ == '__main__':
     main()
