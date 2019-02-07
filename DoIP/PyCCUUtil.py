@@ -1089,7 +1089,7 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
 
 
 
-def DoIP_DID_Access(verbose, did, writeVal=None, hostECUAddr = '0001', serverECUAddr = 'e000',targetIP='192.168.10.10'):
+def DoIP_DID_Access(verbose, did, hostECUAddr = '0001', serverECUAddr = 'e000',targetIP='192.168.10.10', writeValue=None):
     DoIPClient = DoIP_Client(ECUAddr = hostECUAddr)
     DoIPClient.SetVerbosity(verbose)
 
@@ -1105,20 +1105,21 @@ def DoIP_DID_Access(verbose, did, writeVal=None, hostECUAddr = '0001', serverECU
     if not DoIPClient._isRoutingActivated:
         raise IOError("ISO 134000 Routing failed")
 
-    print "    DID:      " ,did
-    print "    writeVal: " ,writeVal
-    print "    targetIP: ", targetIP
+    if verbose:
+        print "    DID:      " ,did
+        print "    writeVal: " ,writeValue
+        print "    targetIP: ", targetIP
 
-    if writeVal == None:
+    if writeValue == None:
         #
-        # Retrieve Application Flash File Name
+        # Query a DID
         #
         print "    ### Query DID: ", did
         result, payload = DoIPClient.DoIPReadDID(did)
         if result < 0 :
             raise ValueError("could not reterive DID_HEX_PROG_FILE_NAME")
 
-        print "result-data: ", payload[6:]
+        print "    result-data: ", payload[6:]
 
         # if it's all ascii, then print the acsii string
         stringVal = binascii.unhexlify(payload[6:])
@@ -1129,11 +1130,21 @@ def DoIP_DID_Access(verbose, did, writeVal=None, hostECUAddr = '0001', serverECU
                 printable = False
 
         if printable:
-            print "string-value: ", stringVal
+            print "    string-value: ", stringVal
         else:
-            print "not printable as a string..."
+            print "    not printable as a string..."
 
+    else:
+        #
+        #
+        # Update a DID
+        #
+        print "    ### update DID:   ", did
+        print "    ### update value: ", writeValue
 
+        result, payload = DoIPClient.DoIPWriteDID(did, writeValue)
+        if result < 0 :
+            raise ValueError("could not reterive DID_HEX_PROG_FILE_NAME")
 
     print "ClosingDown...\n"
     DoIPClient.DisconnectFromDoIPServer()
@@ -1156,10 +1167,12 @@ def main():
     optional.add_argument("-c", "--clientID", nargs = 1, default = ['0001'] ,type = str, help = "Host ECU id to flash from in hex format, i.e. 1111 will be read as 0x1111. Default: 1111")
     optional.add_argument("-s", "--serverID", nargs =1, default = ['E100'],type = str, help = "Target ECU id to flash to in hex format, i.e. 2004 will be read as 0x2004. Default: 2004")
     optional.add_argument("-t", "--targetIP", nargs = 1,default = ['192.168.10.10'], type = str, help = "Target IP address of ECU, e.g. 192.168.7.2. Default: 172.26.200.101")
-    optional.add_argument("-S", "--segmentSize", nargs = 1, default = 4096 ,type = int, help = "Transfer segment size (file read size)")
-    optional.add_argument("-B", "--blockSize", nargs = 1, default = 256 ,type = int, help = "Transfer command block size (transfer block)")
+    optional.add_argument("--segment-size", nargs = 1, default = 4096 ,type = int, help = "Transfer segment size (file read size)")
+    optional.add_argument("--block-size", nargs = 1, default = 256 ,type = int, help = "Transfer command block size (transfer block)")
     optional.add_argument("-v", "--verbose", help="Set verbosity. Default: false", action="store_true")
     optional.add_argument("-d", "--did", nargs = 1, default = ['0001'] ,type = str, help="query/set DID, enter in hex format (e.g. FE08)")
+    optional.add_argument("-X", "--hex", nargs = 1, default = None ,type = str, help="query/set DID, enter in hex format (e.g. FE08)")
+    optional.add_argument("-S", "--str", nargs = 1, default = None ,type = str, help="query/set DID, enter in hex format (e.g. FE08)")
 
 
     args = vars(parser.parse_args())
@@ -1167,9 +1180,20 @@ def main():
 
     if args['did']:
         print "DID Query/Set"
+        wType = None
+        wValue = None
+
+        if args['hex']:
+            wValue = args['hex'][0]
+        elif args['str']:
+            wValue = binascii.hexlify(args['str'][0]).upper()
+
+        print "Write Type:", wType
+        print "Write Value:", wValue
         DoIP_DID_Access(targetIP=args['targetIP'][0],          
                         verbose=args['verbose'], 
-                        did = args['did'][0])
+                        did = args['did'][0],
+                        writeValue = wValue)
         sys.exit(1)
 
                            
