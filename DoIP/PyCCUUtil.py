@@ -1140,14 +1140,56 @@ def DoIP_DID_Access(verbose, did, hostECUAddr = '0001', serverECUAddr = 'e000',t
     print "ClosingDown...\n"
     DoIPClient.DisconnectFromDoIPServer()
 
+examples='''
+Examples:
+
+    ##### DID Query/Set Commands #####
+    #
+    # Query a DID:
+    #
+    $ python PyCCUUtil.py --did FE01
+
+    #
+    # Set a string ID, 17 character VIN in this case
+    #
+    $ python PyCCUUtil.py --did F190 -S "WBACB4325RFL18490"
+
+    #
+    # Binary ID, Ine Character WiFi control/status
+    #   0=off
+    #   1=on
+    # To query the object 0xFE08
+    #
+    $ python PyCCUUtil.py --did FE08
+
+    #
+    # To set a binary ovject you have to know the length and provide 
+    # a 2-digit hex value for each byte you want to set.
+    #
+    # This command sets the one byte binary object to 1
+    #
+    $ python PyCCUUtil.py --did FE08 -X 01
+
+    ##### CCU Reflash Commands #####
+    #
+    # flash the CCU with lots of verbose data
+    #
+    $ python PyCCUUtil.py --file ktm-ccu.swu -t 192.168.10.10 --segment-size 128 --block-size 32 --verbose
+
+    ## PLEASE, if you have interesting commands add an example here.
+
+'''
+
+
 
 
 def main():
     
     import argparse
+    import textwrap
 
     options = []
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="General utility for interacting with an ISO DoIP UDS Server", formatter_class=argparse.RawDescriptionHelpFormatter, epilog=textwrap.dedent(examples))
 
     parser._action_groups.pop()
     required = parser.add_argument_group('required arguments')
