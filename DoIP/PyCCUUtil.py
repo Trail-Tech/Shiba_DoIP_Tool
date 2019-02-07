@@ -6,6 +6,69 @@ import time
 import platform
 import os
 
+# DoIP Header Structure : <protocol version><inverse protocol version><payload type><payloadlength><payload>
+# Payload format : <local ecu address> <optional: target ecu addres> <optional message ><ASRBISO><ASRBOEM>
+
+PROTOCOL_VERSION = DOIP_PV = '02'
+INVERSE_PROTOCOL_VERSION = DOIP_IPV = 'FD'
+
+# Payload type definitions#
+DOIP_GENERIC_NEGATIVE_ACKNOWLEDGE = DOIP_NARP = '0000'
+DOIP_VEHICLE_ID_REQUEST = '0001'
+DOIP_VEHICLE_ID_REQUEST_W_EID = '0002'
+DOIP_VEHICLE_ID_REQUEST_W_VIN = '0003'
+DOIP_VEHICLE_ANNOUNCEMENT_ID_RESPONSE = '0004'
+# DOIP_ROUTING_ACTIVATION_REQUEST : <0005><sourceaddress><activation type><00000000>
+DOIP_ROUTING_ACTIVATION_REQUEST = DOIP_RAR = '0005'
+# Activation Type
+DEFAULT_ACTIVATION = '00'
+WWH_OBD_ACTIVATION = '01'
+# 0x02-0xDF ISOSAE Reserved
+CENTRAL_SECURITY_ACTIVATION = 'E0'
+# 0xE1-0xFF OEM Specific
+ACTIVATION_SPACE_RESERVED_BY_ISO = ASRBISO = '00000000'
+# the code above is mandatory but has no use at the moment. ISOSAE Reserved
+ACTIVATION_SPACE_RESERVED_BY_OEM = ASRBOEM = 'ffffffff'
+
+DOIP_ROUTING_ACTIVATION_RESPONSE = '0006'
+DOIP_ALIVE_CHECK_REQUEST = '0007'
+DOIP_ALIVE_CHECK_RESPONSE = '0008'
+# 0x009-0x4000: Reserved by ISO13400
+DOIP_ENTITY_STATUS_REQUEST = '4001'
+DOIP_ENTITY_STATUS_RESPONSE = '4002'
+DOIP_DIAGNOSTIC_POWER_MODE_INFO_REQUEST = '4003'
+DOIP_DIAGNOSTIC_POWER_MODE_INFO_RESPONSE = '4004'
+# 0x4005-0x8000 Reserved by ISO13400
+DOIP_DIAGNOSTIC_MESSAGE = DOIP_UDS = '8001'
+DOIP_DIAGNOSTIC_POSITIVE_ACKNOWLEDGE = '8002'
+DOIP_DIAGNOSTIC_NEGATIVE_ACKNOWLEDGE = '8003'
+# 0x8004-0xEFFF Reserved by ISO13400
+# 0xF000-0xFFFF Reserved for manufacturer-specific use
+
+
+payloadTypeDescription = {
+    int(DOIP_GENERIC_NEGATIVE_ACKNOWLEDGE): "Generic negative response",
+    int(DOIP_VEHICLE_ID_REQUEST): "Vehicle ID request",
+    int(DOIP_VEHICLE_ID_REQUEST_W_EID): "Vehicle ID request with EID",
+    int(DOIP_VEHICLE_ID_REQUEST_W_VIN): "Vehicle ID request with VIN",
+    int(DOIP_VEHICLE_ANNOUNCEMENT_ID_RESPONSE): "Vehicle announcement ID response",
+    int(DOIP_ROUTING_ACTIVATION_REQUEST): "Routing activation request",
+    int(DOIP_ROUTING_ACTIVATION_RESPONSE): "Routing activation response",
+    int(DOIP_ALIVE_CHECK_REQUEST): "Alive check request",
+    int(DOIP_ALIVE_CHECK_RESPONSE): "Alive check response",
+    int(DOIP_ENTITY_STATUS_REQUEST): "Entity status request",
+    int(DOIP_ENTITY_STATUS_RESPONSE): "Entity status response",
+    int(DOIP_DIAGNOSTIC_POWER_MODE_INFO_REQUEST): "Diagnostic power mode info request",
+    int(DOIP_DIAGNOSTIC_POWER_MODE_INFO_RESPONSE): "Power mode info response",
+    int(DOIP_DIAGNOSTIC_MESSAGE): "Diagnostic message",
+    int(DOIP_DIAGNOSTIC_POSITIVE_ACKNOWLEDGE): "Diagnostic positive acknowledge",
+    int(DOIP_DIAGNOSTIC_NEGATIVE_ACKNOWLEDGE): "Diagnostic negative acknowledge",
+}
+
+# to be changed later as an option in terminal
+defaultTargetIPAddr = '172.26.200.101'
+defaultTargetECUAddr = '2004'
+
 
 class PyUDS:
     ###UDS DEFINITIONS###
@@ -210,87 +273,6 @@ class PyUDS:
     DID_APPLICATION_FLASH_FILE_NAME = DID_AFFN    = 'F111'
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# import argparse
-
-# DoIP Header Structure : <protocol version><inverse protocol version><payload type><payloadlength><payload>
-# Payload format : <local ecu address> <optional: target ecu addres> <optional message ><ASRBISO><ASRBOEM>
-
-PROTOCOL_VERSION = DOIP_PV = '02'
-INVERSE_PROTOCOL_VERSION = DOIP_IPV = 'FD'
-
-# Payload type definitions#
-DOIP_GENERIC_NEGATIVE_ACKNOWLEDGE = DOIP_NARP = '0000'
-DOIP_VEHICLE_ID_REQUEST = '0001'
-DOIP_VEHICLE_ID_REQUEST_W_EID = '0002'
-DOIP_VEHICLE_ID_REQUEST_W_VIN = '0003'
-DOIP_VEHICLE_ANNOUNCEMENT_ID_RESPONSE = '0004'
-# DOIP_ROUTING_ACTIVATION_REQUEST : <0005><sourceaddress><activation type><00000000>
-DOIP_ROUTING_ACTIVATION_REQUEST = DOIP_RAR = '0005'
-# Activation Type
-DEFAULT_ACTIVATION = '00'
-WWH_OBD_ACTIVATION = '01'
-# 0x02-0xDF ISOSAE Reserved
-CENTRAL_SECURITY_ACTIVATION = 'E0'
-# 0xE1-0xFF OEM Specific
-ACTIVATION_SPACE_RESERVED_BY_ISO = ASRBISO = '00000000'
-# the code above is mandatory but has no use at the moment. ISOSAE Reserved
-ACTIVATION_SPACE_RESERVED_BY_OEM = ASRBOEM = 'ffffffff'
-
-DOIP_ROUTING_ACTIVATION_RESPONSE = '0006'
-DOIP_ALIVE_CHECK_REQUEST = '0007'
-DOIP_ALIVE_CHECK_RESPONSE = '0008'
-# 0x009-0x4000: Reserved by ISO13400
-DOIP_ENTITY_STATUS_REQUEST = '4001'
-DOIP_ENTITY_STATUS_RESPONSE = '4002'
-DOIP_DIAGNOSTIC_POWER_MODE_INFO_REQUEST = '4003'
-DOIP_DIAGNOSTIC_POWER_MODE_INFO_RESPONSE = '4004'
-# 0x4005-0x8000 Reserved by ISO13400
-DOIP_DIAGNOSTIC_MESSAGE = DOIP_UDS = '8001'
-DOIP_DIAGNOSTIC_POSITIVE_ACKNOWLEDGE = '8002'
-DOIP_DIAGNOSTIC_NEGATIVE_ACKNOWLEDGE = '8003'
-# 0x8004-0xEFFF Reserved by ISO13400
-# 0xF000-0xFFFF Reserved for manufacturer-specific use
-
-
-payloadTypeDescription = {
-    int(DOIP_GENERIC_NEGATIVE_ACKNOWLEDGE): "Generic negative response",
-    int(DOIP_VEHICLE_ID_REQUEST): "Vehicle ID request",
-    int(DOIP_VEHICLE_ID_REQUEST_W_EID): "Vehicle ID request with EID",
-    int(DOIP_VEHICLE_ID_REQUEST_W_VIN): "Vehicle ID request with VIN",
-    int(DOIP_VEHICLE_ANNOUNCEMENT_ID_RESPONSE): "Vehicle announcement ID response",
-    int(DOIP_ROUTING_ACTIVATION_REQUEST): "Routing activation request",
-    int(DOIP_ROUTING_ACTIVATION_RESPONSE): "Routing activation response",
-    int(DOIP_ALIVE_CHECK_REQUEST): "Alive check request",
-    int(DOIP_ALIVE_CHECK_RESPONSE): "Alive check response",
-    int(DOIP_ENTITY_STATUS_REQUEST): "Entity status request",
-    int(DOIP_ENTITY_STATUS_RESPONSE): "Entity status response",
-    int(DOIP_DIAGNOSTIC_POWER_MODE_INFO_REQUEST): "Diagnostic power mode info request",
-    int(DOIP_DIAGNOSTIC_POWER_MODE_INFO_RESPONSE): "Power mode info response",
-    int(DOIP_DIAGNOSTIC_MESSAGE): "Diagnostic message",
-    int(DOIP_DIAGNOSTIC_POSITIVE_ACKNOWLEDGE): "Diagnostic positive acknowledge",
-    int(DOIP_DIAGNOSTIC_NEGATIVE_ACKNOWLEDGE): "Diagnostic negative acknowledge",
-}
-
-# to be changed later as an option in terminal
-defaultTargetIPAddr = '172.26.200.101'
-defaultTargetECUAddr = '2004'
 
 def PadHexwithLead0s(hexStr):
     if isinstance (hexStr, str): # Make sure input argument is string
@@ -1119,8 +1101,12 @@ def DoIP_DID_Access(verbose, did, hostECUAddr = '0001', serverECUAddr = 'e000',t
         if result < 0 :
             raise ValueError("could not reterive DID_HEX_PROG_FILE_NAME")
 
-        print "    result-data: ", payload[6:]
+        print "    response SID: ", payload[0:2]
+        print "    result-data:  ", payload[6:]
 
+        if payload[0:2] != "62":
+            raise ValueError("Negative Response NRC=%s"%payload[0:2])
+            
         # if it's all ascii, then print the acsii string
         stringVal = binascii.unhexlify(payload[6:])
 
@@ -1194,7 +1180,8 @@ def main():
                         verbose=args['verbose'], 
                         did = args['did'][0],
                         writeValue = wValue)
-        sys.exit(1)
+
+        sys.exit(0)
 
                            
 
