@@ -1106,7 +1106,7 @@ def DoIP_DID_Access(verbose, did, hostECUAddr = '0001', serverECUAddr = 'e000',t
 
         if payload[0:2] != "62":
             raise ValueError("Negative Response NRC=%s"%payload[0:2])
-            
+
         # if it's all ascii, then print the acsii string
         stringVal = binascii.unhexlify(payload[6:])
 
@@ -1132,6 +1132,11 @@ def DoIP_DID_Access(verbose, did, hostECUAddr = '0001', serverECUAddr = 'e000',t
         if result < 0 :
             raise ValueError("could not reterive DID_HEX_PROG_FILE_NAME")
 
+        print "    response SID: ", payload[0:2]
+
+        if payload[0:2] != "6E":
+            raise ValueError("Negative Response NRC=%s"%payload[0:2])
+            
     print "ClosingDown...\n"
     DoIPClient.DisconnectFromDoIPServer()
 
