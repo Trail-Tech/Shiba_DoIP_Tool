@@ -904,10 +904,10 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
         # Transfer Data 5.3.7
         #
         print "\n    ### Transfer Data"
-        print "         blockSize:", blockSize
-        print "         segmentSize:", segmentSize
-        print "         bytesRemaining:", bytesRemaining
-        print "         len(segment):", len(segment)
+        print "          blockSize:", blockSize
+        print "          segmentSize:", segmentSize
+        print "          bytesRemaining:", bytesRemaining
+        print "          len(segment):", len(segment)
         
         blockSize = min(blockSize, bytesRemaining)
         blockCount = 0
@@ -920,43 +920,41 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
         
         while segmentBytesRemaining:
             minAddr = blockCount * blockSize
-            maxAddr = minAddr + blockSize+1
-            print "         minAddr:", minAddr
-            print "         maxAddr:", maxAddr
+            maxAddr = minAddr + blockSize
+            for address in range(minAddr, maxAddr):
 
-            for address in range(minAddr, maxAddr + 1):
-                # print '%.8X\t%.2X' % (address,ih[address])
                 hexDataStr = hexDataStr + '%.2X' % ord(segment[address])
                 blockByteCount += 1
+
                 if blockByteCount == maxBlockByteCount:
                     hexDataList.append(hexDataStr)
                     hexDataStr = "" 
                     blockByteCount = 0
-            hexDataList.append(hexDataStr)
 
             blockCount += 1
-            #segmentBytesRemaining = min(0, segmentBytes-
-            #
-            ##
+            segmentBytesRemaining = max(0, segmentBytesRemaining - blockSize)
 
+        if len(hexDataStr) > 0:
+            print "!!! ODDBALL ADDITION"
+            hexDataList.append(hexDataStr)
 
-        print "%d elements in hexDataList" % len(hexDataList)
-        for e in hexDataList:
-            print len(e), e
-
-        sys.exit()
-
+        #print "%d elements in hexDataList" % len(hexDataList)
+        #print "hexDataList: ", hexDataList
 
         blockIndex = 0
         for block in hexDataList:
             blockIndexStr = '%.2X' % (blockIndex & 0xFF)
-            print "blockindex: ", blockIndexStr
-            print "block: ", block
-            if DoIPClient.DoIPTransferData(blockIndexStr, block) != 0:
+            #print "blockindex: ", blockIndexStr
+            #print "block: ", block
+            downloadResult, payload = DoIPClient.DoIPTransferData(blockIndexStr, block)
+            #print "downloadResult: ", downloadResult
+            if downloadResult != 0:
                 downloadErr = True
+                print "Error: DownloadError"
                 break
-            bar.update(blockIndex)
             blockIndex += 1
+
+
 
 
         #
@@ -970,8 +968,7 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
             raise ValueError("Failed to Start Erase Memory")
 
         #
-        #   Routine Control, Request Checksum Results.
-        #       31010201 Start Checksum
+        #   Routine Control, Start Checksum
         #       ssssssss start address 32 bit
         #       eeeeeeee end address 32 bit
         #       cccc 16 bit checksum
@@ -990,13 +987,11 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
         hMemEndaddress = hex(currentImageOffset+bytesThisSegment).lstrip("0x").rstrip("L").rjust(8, '0')
         hChecksum = hex(checksum16).lstrip("0x").rstrip("L").rjust(4, '0')
 
-
-
         result, payload = DoIPClient.DoIPRoutineControl(PyUDS.START_ROUTINE, "0201", hMemStartAddress+hMemEndaddress+hChecksum )
         print "        Result = ", result
         print "        payload = ", payload
         if result !=0:
-            raise ValueError("Failed to Start Erase Memory")
+            raise ValueError("Failed to Start Checksum")
 
         responseId = payload[0:2]
         subFunction = payload[2:4]
@@ -1013,7 +1008,7 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
         #
         # Routine Control: Verify checksum results
         #
-        print "\n    ### Erase Memory Check Results"
+        print "\n    ### Checksum Check Results"
         result, payload = DoIPClient.DoIPRoutineControl(PyUDS.REQUEST_ROUTINE_RESULTS, "0201", hChecksum )
         print "        Result = ", result
         print "        payload = ", payload
@@ -1036,7 +1031,7 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
 
         #DoIPClient.DoIPRequestTransferExit()
 
-        sys.exit()
+        #sys.exit()
 
 
         bytesFlashed += bytesThisSegment
@@ -1048,22 +1043,37 @@ def DoIP_Flash_Hex(componentID, flashFile, hostECUAddr = '0001', serverECUAddr =
         #print "Exiting out of flash sequence...\n"
         #DoIPClient.DisconnectFromDoIPServer()
 
-    #print "\n    ### Routine Control Checksum"
-
-    #
-    #   Routine Control, Request Checksum Results.
-    #
-    print "\n    ### Routine Control, Request Checksum Results."
-
     #
     # Write data by identifier, Dealer Number
     #
-    print "\n    ### Write data by identifier, Dealer Number"
+    print "\n    ### Write data by identifier, Dealer Number 0x9988"
+    result, payload = DoIPClient.DoIPWriteDID("F198", "9988")
+    if result < 0 :
+        raise ValueError("could not reterive DID_HEX_PROG_FILE_NAME")
+
+    print "    response SID: ", payload[0:2]
+
+    if payload[0:2] != "6E":
+        raise ValueError("Negative Response NRC=%s"%payload[0:2])
+            
 
     #
     # Write data by identifier, Date of last Flash
     #
     print "\n    ### Write data by identifier, Date of last Flash"
+    #            "value" : "\\x19\\x62\\x05\\x14",
+    #        "xid": "0xF199",
+
+    result, payload = DoIPClient.DoIPWriteDID("F199", "19620207")
+    if result < 0 :
+        raise ValueError("could not reterive DID_HEX_PROG_FILE_NAME")
+
+    print "    response SID: ", payload[0:2]
+
+    if payload[0:2] != "6E":
+        raise ValueError("Negative Response NRC=%s"%payload[0:2])
+            
+
 
 
     print "Exiting out of flash sequence...\n"
@@ -1200,10 +1210,10 @@ def main():
     optional.add_argument("-c", "--clientID", nargs = 1, default = ['0001'] ,type = str, help = "Host ECU id to flash from in hex format, i.e. 1111 will be read as 0x1111. Default: 1111")
     optional.add_argument("-s", "--serverID", nargs =1, default = ['E100'],type = str, help = "Target ECU id to flash to in hex format, i.e. 2004 will be read as 0x2004. Default: 2004")
     optional.add_argument("-t", "--targetIP", nargs = 1,default = ['192.168.10.10'], type = str, help = "Target IP address of ECU, e.g. 192.168.7.2. Default: 172.26.200.101")
-    optional.add_argument("--segment-size", nargs = 1, default = 4096 ,type = int, help = "Transfer segment size (file read size)")
-    optional.add_argument("--block-size", nargs = 1, default = 256 ,type = int, help = "Transfer command block size (transfer block)")
+    optional.add_argument("-g", "--segmentsize", nargs = 1, default = 4096 ,type = int, help = "Transfer segment size (file read size)")
+    optional.add_argument("-k", "--blocksize", nargs = 1, default = 256 ,type = int, help = "Transfer command block size (transfer block)")
     optional.add_argument("-v", "--verbose", help="Set verbosity. Default: false", action="store_true")
-    optional.add_argument("-d", "--did", nargs = 1, default = ['0001'] ,type = str, help="query/set DID, enter in hex format (e.g. FE08)")
+    optional.add_argument("-d", "--did", nargs = 1, default = None ,type = str, help="query/set DID, enter in hex format (e.g. FE08)")
     optional.add_argument("-X", "--hex", nargs = 1, default = None ,type = str, help="query/set DID, enter in hex format (e.g. FE08)")
     optional.add_argument("-S", "--str", nargs = 1, default = None ,type = str, help="query/set DID, enter in hex format (e.g. FE08)")
 
@@ -1250,20 +1260,20 @@ def main():
         print "Error:: No target IP address specified"
         sys.exit(-1)
                             
-    if not args['segmentSize'] or args['segmentSize'] < 1:
-        print "Error:: Invalid segmentSize, must be a positive integer"
+    if not args['segmentsize'] or args['segmentsize'] < 1:
+        print "Error:: Invalid segmentsize, must be a positive integer"
         sys.exit(-1)
 
-    if not args['blockSize'] or args['blockSize'] < 1 or  args['blockSize'] > args['segmentSize']:
-        print "Error:: Invalid blockSize, must be a positive integer and no larger than a segment"
+    if not args['blocksize'] or args['blocksize'] < 1 or  args['blocksize'] > args['segmentsize']:
+        print "Error:: Invalid blocksize, must be a positive integer and no larger than a segment"
         sys.exit(-1)
 
     DoIP_Flash_Hex(0, args['file'][0], 
             targetIP=args['targetIP'][0], 
             verbose=args['verbose'], 
             multiSegment=True, 
-            segmentSize = args['segmentSize'], 
-            blockSize = args['blockSize'])
+            segmentSize = args['segmentsize'], 
+            blockSize = args['blocksize'])
 
 if __name__ == '__main__':
     main()
